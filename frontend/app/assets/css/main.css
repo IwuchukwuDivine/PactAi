@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --font-body: "Inter", sans-serif;
+  --color-primary: #2d0102;
+  --color-accent: #aa0101;
+  --color-white: #ffffff;
+  --color-off-white: #fefdfd;
+  --color-near-white: #fffdfd;
+  --color-black: #000000;
+  --color-gray-light: #d9d9d9;
+  --color-gray-medium: #bebebe;
+  --color-gray-dark: #969494;
+  --color-gray-muted: #9c9a9a;
+  --shadow-default: 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
+  --right: env(safe-area-inset-right, 0px);
+  --top: env(safe-area-inset-top, 0px);
+  --left: env(safe-area-inset-left, 0px);
+  --bottom: env(safe-area-inset-bottom, 0px);
+}
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  background: var(--color-primary);
+  color: var(--text-on-primary);
+  text-decoration: none;
+  border-radius: 0 0 0.5rem 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+body::-webkit-scrollbar {
+  display: none !important;
+}
+::-webkit-scrollbar {
+  width: 0px !important;
+  height: 0px;
+  display: none;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-white);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 400;
+  min-height: 100dvh;
+  width: 100vw;
+  font-display: swap;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+#__nuxt {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 100dvh;
+  padding-left: var(--left);
+  padding-right: var(--right);
+}
+
+button {
+  cursor: pointer;
+}
+input,
+textarea,
+select {
+  outline: none;
+  border: none;
+  box-shadow: none;
+  appearance: none;
+  font-family: var(--font-body);
+}
