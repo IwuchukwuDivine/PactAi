@@ -95,6 +95,11 @@ import { emailRules, passwordRules, requiredRules } from "~/utils/types/rules";
 
 definePageMeta({ layout: false });
 
+useSeoMeta({
+  title: "Create Account",
+  description: "Sign up for Pact AI to turn WhatsApp chats, DMs, and emails into legally enforceable contracts with built-in escrow.",
+});
+
 const form = reactive({
   email: "",
   password: "",

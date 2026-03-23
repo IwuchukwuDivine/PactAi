@@ -87,6 +87,11 @@ import { emailRules, passwordRules } from "~/utils/types/rules";
 
 definePageMeta({ layout: false });
 
+useSeoMeta({
+  title: "Sign In",
+  description: "Sign in to Pact AI to manage your contracts, escrow payments, and digital agreements.",
+});
+
 const form = reactive({
   email: "",
   password: "",

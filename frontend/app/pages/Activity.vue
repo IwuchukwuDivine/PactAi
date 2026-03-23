@@ -19,6 +19,11 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
+
+useSeoMeta({
+  title: "Activity",
+  description: "Track recent activity on your Pact AI contracts — signatures, escrow updates, and comments.",
+});
 </script>
 
 <style scoped>

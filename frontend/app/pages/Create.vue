@@ -3,7 +3,9 @@
     <!-- Header -->
     <header class="create__header">
       <h1 class="create__title">New Contract</h1>
-      <p class="create__subtitle">How would you like to create your contract?</p>
+      <p class="create__subtitle">
+        How would you like to create your contract?
+      </p>
     </header>
 
     <!-- Method tabs -->
@@ -31,7 +33,9 @@
           rows="10"
         />
         <div class="create__textarea-footer">
-          <span class="create__char-count">{{ inputText.length }} characters</span>
+          <span class="create__char-count"
+            >{{ inputText.length }} characters</span
+          >
           <button
             v-if="activeMethod === 'paste'"
             class="create__paste-btn"
@@ -53,7 +57,7 @@
           multiple
           class="create__file-input-hidden"
           @change="handleFileSelect"
-        >
+        />
 
         <!-- Dropzone -->
         <div
@@ -68,9 +72,7 @@
           <div class="create__dropzone-icon">
             <LucideUploadCloud :size="36" />
           </div>
-          <p class="create__dropzone-title">
-            Tap to upload or drag & drop
-          </p>
+          <p class="create__dropzone-title">Tap to upload or drag & drop</p>
           <p class="create__dropzone-hint">
             PNG, JPG, WebP &bull; Max 4MB &bull; Up to 5 images
           </p>
@@ -89,15 +91,24 @@
             :key="img.id"
             class="create__preview"
           >
-            <img :src="img.url" :alt="img.file.name" class="create__preview-img">
+            <img
+              :src="img.url"
+              :alt="img.file.name"
+              class="create__preview-img"
+            />
             <div class="create__preview-overlay">
-              <button class="create__preview-remove" @click="removeImage(index)">
+              <button
+                class="create__preview-remove"
+                @click="removeImage(index)"
+              >
                 <LucideX :size="14" />
               </button>
             </div>
             <div class="create__preview-info">
               <span class="create__preview-name">{{ img.file.name }}</span>
-              <span class="create__preview-size">{{ formatSize(img.file.size) }}</span>
+              <span class="create__preview-size">{{
+                formatSize(img.file.size)
+              }}</span>
             </div>
           </div>
         </div>
@@ -105,9 +116,16 @@
     </div>
 
     <!-- Attachment chips (for paste/type modes) -->
-    <div v-if="activeMethod !== 'upload' && uploadedImages.length" class="create__attachments">
-      <div v-for="(img, index) in uploadedImages" :key="img.id" class="create__attachment">
-        <img :src="img.url" alt="" class="create__attachment-thumb">
+    <div
+      v-if="activeMethod !== 'upload' && uploadedImages.length"
+      class="create__attachments"
+    >
+      <div
+        v-for="(img, index) in uploadedImages"
+        :key="img.id"
+        class="create__attachment"
+      >
+        <img :src="img.url" alt="" class="create__attachment-thumb" />
         <span>{{ img.file.name }}</span>
         <button @click="removeImage(index)">
           <LucideX :size="14" />
@@ -124,7 +142,7 @@
       multiple
       class="create__file-input-hidden"
       @change="handleFileSelect"
-    >
+    />
 
     <!-- Attach image button (for paste/type modes) -->
     <button
@@ -135,6 +153,14 @@
       <LucidePaperclip :size="16" />
       Attach screenshot
     </button>
+
+    <!-- Escrow section -->
+    <EscrowConfig
+      v-model:enabled="escrow.enabled"
+      v-model:amount="escrow.amount"
+      v-model:release-condition="escrow.releaseCondition"
+      class="create__escrow"
+    />
 
     <!-- Generate button -->
     <div class="create__footer">
@@ -151,7 +177,9 @@
     <!-- Info tip -->
     <div class="create__tip">
       <LucideInfo :size="14" />
-      <span>Nigerian Pidgin is supported and will be translated correctly.</span>
+      <span
+        >Nigerian Pidgin is supported and will be translated correctly.</span
+      >
     </div>
   </div>
 </template>
@@ -162,9 +190,15 @@ import {
   LucidePenLine,
   LucideCamera,
 } from "lucide-vue-next";
+import type { ReleaseCondition } from "~/components/EscrowConfig.vue";
 import { compressImage } from "~/utils/compressImage";
 
 definePageMeta({ layout: "dashboard" });
+
+useSeoMeta({
+  title: "New Contract",
+  description: "Create a new contract by pasting a conversation, typing your agreement, or uploading screenshots.",
+});
 
 const route = useRoute();
 const validMethods = ["paste", "type", "upload"] as const;
@@ -201,6 +235,12 @@ const methods = [
   { id: "upload" as const, label: "Upload", icon: LucideCamera },
 ];
 
+const escrow = reactive({
+  enabled: false,
+  amount: "",
+  releaseCondition: "delivery" as ReleaseCondition,
+});
+
 const activePlaceholder = computed(() => {
   if (activeMethod.value === "paste") {
     return "Paste your WhatsApp, DM, email or any conversation here...";
@@ -219,16 +259,6 @@ const formatSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const validateFile = (file: File): string | null => {
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return `"${file.name}" is not a supported format. Use PNG, JPG, or WebP.`;
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    return `"${file.name}" exceeds 4MB. It will be compressed.`;
-  }
-  return null;
-};
-
 const { addToast } = useToast();
 
 const processFiles = async (files: File[]) => {
@@ -243,15 +273,24 @@ const processFiles = async (files: File[]) => {
   const imageFiles = files
     .filter((f) => {
       if (!ALLOWED_TYPES.includes(f.type)) {
-        addToast("error", `"${f.name}" is not supported. Use PNG, JPG, or WebP.`);
+        addToast(
+          "error",
+          `"${f.name}" is not supported. Use PNG, JPG, or WebP.`,
+        );
         return false;
       }
       return true;
     })
     .slice(0, remaining);
 
-  if (imageFiles.length < files.filter((f) => ALLOWED_TYPES.includes(f.type)).length) {
-    addToast("warning", `Only ${remaining} more image${remaining === 1 ? "" : "s"} allowed (max ${MAX_IMAGES}).`);
+  if (
+    imageFiles.length <
+    files.filter((f) => ALLOWED_TYPES.includes(f.type)).length
+  ) {
+    addToast(
+      "warning",
+      `Only ${remaining} more image${remaining === 1 ? "" : "s"} allowed (max ${MAX_IMAGES}).`,
+    );
   }
 
   for (const file of imageFiles) {
@@ -406,7 +445,7 @@ onUnmounted(() => {
   min-height: 200px;
   padding: 18px;
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 400;
   line-height: 1.6;
   color: var(--color-black);
@@ -690,6 +729,11 @@ onUnmounted(() => {
 .create__tip svg {
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+/* Escrow section */
+.create__escrow {
+  margin-top: 24px;
 }
 
 @media (min-width: 768px) {

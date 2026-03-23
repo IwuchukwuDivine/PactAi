@@ -42,6 +42,11 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
+useSeoMeta({
+  title: "My Contracts",
+  description: "View and manage all your Pact AI contracts — active, pending, and completed agreements.",
+});
+
 const activeTab = ref("all");
 
 const tabs = [
