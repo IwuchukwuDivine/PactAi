@@ -88,6 +88,11 @@ definePageMeta({ layout: false });
 const route = useRoute();
 const { addToast } = useToast();
 
+useSeoMeta({
+  title: "Contract Signed",
+  description: "Contract signed successfully on Pact AI. Your digitally signed agreement is now legally binding.",
+});
+
 // TODO: fetch from API or receive via navigation state
 const contract = reactive({
   title: "Logo Design for TechWave",

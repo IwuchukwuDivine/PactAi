@@ -259,6 +259,13 @@ const route = useRoute();
 const router = useRouter();
 const { addToast } = useToast();
 
+useSeoMeta({
+  title: "Sign Contract",
+  description: "You've been invited to review and sign a contract on Pact AI. Review the terms and sign securely.",
+  ogTitle: "You're invited to sign a contract — Pact AI",
+  ogDescription: "Review and sign your contract securely on Pact AI.",
+});
+
 const showConfirm = ref(false);
 const showDecline = ref(false);
 const showEscrowFund = ref(false);

@@ -98,6 +98,11 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
+useSeoMeta({
+  title: "Dashboard",
+  description: "Your Pact AI dashboard — create contracts, track signatures, and manage escrow payments.",
+});
+
 const greeting = computed(() => {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";

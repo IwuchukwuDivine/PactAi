@@ -209,6 +209,11 @@ const route = useRoute();
 const { addToast } = useToast();
 const showActions = ref(false);
 
+useSeoMeta({
+  title: "Contract Status",
+  description: "Track the progress of your Pact AI contract — signatures, escrow funding, and completion status.",
+});
+
 type StepStatus = "done" | "active" | "pending";
 type EscrowStatus = "unfunded" | "funded" | "released" | "disputed";
 

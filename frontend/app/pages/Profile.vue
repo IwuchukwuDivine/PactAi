@@ -68,6 +68,11 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
+
+useSeoMeta({
+  title: "Profile",
+  description: "Manage your Pact AI profile, account settings, and preferences.",
+});
 </script>
 
 <style scoped>

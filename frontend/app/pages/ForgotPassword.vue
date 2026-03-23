@@ -53,6 +53,11 @@ import { emailRules } from "~/utils/types/rules";
 
 definePageMeta({ layout: false });
 
+useSeoMeta({
+  title: "Reset Password",
+  description: "Reset your Pact AI password. Enter your email to receive a password reset link.",
+});
+
 const form = reactive({
   email: "",
 });

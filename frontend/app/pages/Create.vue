@@ -195,6 +195,11 @@ import { compressImage } from "~/utils/compressImage";
 
 definePageMeta({ layout: "dashboard" });
 
+useSeoMeta({
+  title: "New Contract",
+  description: "Create a new contract by pasting a conversation, typing your agreement, or uploading screenshots.",
+});
+
 const route = useRoute();
 const validMethods = ["paste", "type", "upload"] as const;
 type Method = (typeof validMethods)[number];

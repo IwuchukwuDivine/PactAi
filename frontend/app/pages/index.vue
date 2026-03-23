@@ -48,6 +48,11 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: false });
+
+useSeoMeta({
+  title: "Welcome",
+  description: "Turn informal chats into legally binding contracts — in seconds. Sign up or sign in to get started.",
+});
 </script>
 
 <style scoped>
