@@ -1,18 +1,22 @@
 <template>
   <div class="sign-page">
     <!-- Trust header -->
-    <header class="sign-header">
-      <img
-        src="/logo.png"
-        alt="Pact AI"
-        class="sign-header__logo"
-        @click="router.push('/home')"
-      />
-      <div class="sign-header__badge">
-        <LucideShieldCheck :size="14" />
-        <span>Verified contract</span>
-      </div>
-    </header>
+    <AppHeader>
+      <template #title>
+        <img
+          src="/logo.png"
+          alt="Pact AI"
+          class="sign-header__logo"
+          @click="router.push('/Home')"
+        >
+      </template>
+      <template #action>
+        <div class="sign-header__badge">
+          <LucideShieldCheck :size="14" />
+          <span>Verified contract</span>
+        </div>
+      </template>
+    </AppHeader>
 
     <!-- Contract card -->
     <section class="sign-card">
@@ -374,18 +378,10 @@ const handleDecline = async () => {
 }
 
 /* Header */
-.sign-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  background: var(--color-white);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
 .sign-header__logo {
   height: 32px;
   width: auto;
+  cursor: pointer;
 }
 
 .sign-header__badge {
@@ -852,12 +848,6 @@ const handleDecline = async () => {
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-
-  .sign-header {
-    max-width: 600px;
-    width: 100%;
-    border-radius: 0 0 18px 18px;
   }
 
   .sign-card,
