@@ -93,11 +93,12 @@
 <script setup lang="ts">
 import { emailRules, passwordRules, requiredRules } from "~/utils/types/rules";
 
-definePageMeta({ layout: false });
+definePageMeta({ layout: false, middleware: "auth" });
 
 useSeoMeta({
   title: "Create Account",
-  description: "Sign up for Pact AI to turn WhatsApp chats, DMs, and emails into legally enforceable contracts with built-in escrow.",
+  description:
+    "Sign up for Pact AI to turn WhatsApp chats, DMs, and emails into legally enforceable contracts with built-in escrow.",
 });
 
 const form = reactive({
