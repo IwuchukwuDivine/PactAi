@@ -1,11 +1,12 @@
 <template>
   <div class="profile">
-    <header class="profile__header">
-      <h1 class="profile__title">Profile</h1>
-      <button class="profile__settings" aria-label="Settings">
-        <LucideSettings :size="20" />
-      </button>
-    </header>
+    <AppHeader title="Profile">
+      <template #action>
+        <button aria-label="Settings">
+          <LucideSettings :size="20" />
+        </button>
+      </template>
+    </AppHeader>
 
     <!-- Avatar + info -->
     <div class="profile__card">
@@ -71,7 +72,8 @@ definePageMeta({ layout: "dashboard" });
 
 useSeoMeta({
   title: "Profile",
-  description: "Manage your Pact AI profile, account settings, and preferences.",
+  description:
+    "Manage your Pact AI profile, account settings, and preferences.",
 });
 </script>
 
@@ -82,39 +84,12 @@ useSeoMeta({
   margin: 0 auto;
 }
 
-.profile__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-.profile__title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 0;
-}
-
-.profile__settings {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(45, 1, 2, 0.04);
-  border: none;
-  color: var(--color-primary);
-  cursor: pointer;
-}
-
 /* Avatar card */
 .profile__card {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  margin: 20px 0;
 }
 
 .profile__avatar {

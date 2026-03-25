@@ -100,6 +100,16 @@ export default defineNuxtConfig({
       },
     ],
   },
+  runtimeConfig: {
+    public: {
+      supabaseUrl: process.env.SUPABASE_URL,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+      apiBase: process.env.API_BASE_URL || "http://localhost:8000",
+    },
+  },
+  devServer: {
+    host: "0.0.0.0",
+  },
   typescript: {
     typeCheck: true,
   },

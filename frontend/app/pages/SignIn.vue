@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
     <header class="auth-header">
-      <img src="/logo.png" alt="Pact AI" class="auth-header__logo">
+      <img src="/logo.png" alt="Pact AI" class="auth-header__logo" />
     </header>
 
     <div class="auth-body">
@@ -17,7 +17,7 @@
           src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
           alt="Google"
           class="auth-google__icon"
-        >
+        />
         <span>Continue with Google</span>
       </button>
 
@@ -85,11 +85,14 @@
 <script setup lang="ts">
 import { emailRules, passwordRules } from "~/utils/types/rules";
 
-definePageMeta({ layout: false });
-
+definePageMeta({
+  layout: false,
+  middleware: "auth",
+});
 useSeoMeta({
   title: "Sign In",
-  description: "Sign in to Pact AI to manage your contracts, escrow payments, and digital agreements.",
+  description:
+    "Sign in to Pact AI to manage your contracts, escrow payments, and digital agreements.",
 });
 
 const form = reactive({

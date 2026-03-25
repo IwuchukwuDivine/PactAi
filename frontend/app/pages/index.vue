@@ -47,11 +47,12 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: false });
+definePageMeta({ layout: false, middleware: "auth" });
 
 useSeoMeta({
   title: "Welcome",
-  description: "Turn informal chats into legally binding contracts — in seconds. Sign up or sign in to get started.",
+  description:
+    "Turn informal chats into legally binding contracts — in seconds. Sign up or sign in to get started.",
 });
 </script>
 
