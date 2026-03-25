@@ -13,7 +13,10 @@ const addToast = (
 ) => {
   if (toasts.value.some((t) => t.message === message)) return;
 
-  const id = crypto.randomUUID();
+  const id =
+    typeof crypto?.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
   if (toasts.value.length >= 3) {
     toasts.value.pop();

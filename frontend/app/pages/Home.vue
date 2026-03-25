@@ -1,23 +1,25 @@
 <template>
   <div class="home">
     <!-- Top bar -->
-    <header class="home__header">
-      <div class="home__greeting">
+    <AppHeader>
+      <template #title>
         <p class="home__greeting-text">{{ greeting }},</p>
         <h2 class="home__greeting-name">User</h2>
-      </div>
-      <button class="home__notif" aria-label="Notifications">
-        <LucideBell :size="22" />
-        <span class="home__notif-dot" />
-      </button>
-    </header>
+      </template>
+      <template #action>
+        <button class="home__notif" aria-label="Notifications">
+          <LucideBell :size="22" />
+          <span class="home__notif-dot" />
+        </button>
+      </template>
+    </AppHeader>
 
     <!-- CTA hero card -->
-    <div class="home__hero" @click="navigateTo('/Create')">
+    <div class="home__hero" @click="navigateTo('/Chat')">
       <div class="home__hero-content">
-        <h3 class="home__hero-title">Create a new contract</h3>
+        <h3 class="home__hero-title">Chat with Pact AI</h3>
         <p class="home__hero-desc">
-          Paste a chat, type a description, or upload a screenshot
+          Describe your agreement and AI will draft a contract for you
         </p>
         <span class="home__hero-cta">
           Get started
@@ -51,23 +53,23 @@
     <section class="home__section">
       <h3 class="home__section-title">Quick actions</h3>
       <div class="home__actions">
-        <button class="home__action" @click="navigateTo('/Create?method=paste')">
+        <button class="home__action" @click="navigateTo('/Chat')">
           <span class="home__action-icon">
-            <LucideClipboardPaste :size="20" />
+            <LucideSparkles :size="20" />
           </span>
-          <span class="home__action-label">Paste chat</span>
+          <span class="home__action-label">New contract</span>
         </button>
-        <button class="home__action" @click="navigateTo('/Create?method=type')">
+        <button class="home__action" @click="navigateTo('/Contracts')">
           <span class="home__action-icon">
-            <LucidePenLine :size="20" />
+            <LucideFolderOpen :size="20" />
           </span>
-          <span class="home__action-label">Type it out</span>
+          <span class="home__action-label">My contracts</span>
         </button>
-        <button class="home__action" @click="navigateTo('/Create?method=upload')">
+        <button class="home__action" @click="navigateTo('/History')">
           <span class="home__action-icon">
-            <LucideCamera :size="20" />
+            <LucideMessagesSquare :size="20" />
           </span>
-          <span class="home__action-label">Screenshot</span>
+          <span class="home__action-label">Chat history</span>
         </button>
       </div>
     </section>
@@ -100,7 +102,8 @@ definePageMeta({ layout: "dashboard" });
 
 useSeoMeta({
   title: "Dashboard",
-  description: "Your Pact AI dashboard — create contracts, track signatures, and manage escrow payments.",
+  description:
+    "Your Pact AI dashboard — create contracts, track signatures, and manage escrow payments.",
 });
 
 const greeting = computed(() => {
@@ -116,14 +119,6 @@ const greeting = computed(() => {
   padding: 20px 20px 0;
   max-width: 560px;
   margin: 0 auto;
-}
-
-/* Header */
-.home__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
 }
 
 .home__greeting-text {
@@ -144,21 +139,6 @@ const greeting = computed(() => {
 
 .home__notif {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(45, 1, 2, 0.04);
-  border: none;
-  color: var(--color-primary);
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.home__notif:hover {
-  background: rgba(45, 1, 2, 0.08);
 }
 
 .home__notif-dot {
@@ -183,8 +163,10 @@ const greeting = computed(() => {
   background: var(--color-primary);
   color: var(--color-off-white);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  margin-bottom: 20px;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  margin: 20px 0;
 }
 
 .home__hero:hover {

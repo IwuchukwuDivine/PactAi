@@ -9,9 +9,18 @@
       >
         <div class="toast-accent" :class="`toast-accent--${toast.type}`" />
         <div class="toast-body">
-          <component :is="iconMap[toast.type]" :size="18" :stroke-width="2.2" class="toast-icon" />
+          <component
+            :is="iconMap[toast.type]"
+            :size="18"
+            :stroke-width="2.2"
+            class="toast-icon"
+          />
           <p class="toast-message">{{ toast.message }}</p>
-          <button class="toast-close" aria-label="Dismiss" @click="removeToast(toast.id)">
+          <button
+            class="toast-close"
+            aria-label="Dismiss"
+            @click="removeToast(toast.id)"
+          >
             <LucideX :size="14" :stroke-width="2.5" />
           </button>
         </div>
@@ -194,7 +203,9 @@ const stackClass = (index: number) => {
   background: none;
   opacity: 0.35;
   cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
 }
 
 .toast-close:hover {

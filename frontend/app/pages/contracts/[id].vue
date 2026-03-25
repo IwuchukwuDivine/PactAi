@@ -1,20 +1,25 @@
 <template>
   <div class="status-page">
     <!-- Header -->
-    <header class="status-header">
-      <button class="status-header__back" @click="navigateTo('/Contracts')">
-        <LucideArrowLeft :size="20" />
-      </button>
-      <h1 class="status-header__title">Contract Status</h1>
-      <button class="status-header__more" @click="showActions = true">
-        <LucideEllipsisVertical :size="20" />
-      </button>
-    </header>
+    <AppHeader
+      style="padding-right: 20px; padding-left: 20px"
+      title="Contract Status"
+      show-back
+    >
+      <template #action>
+        <button aria-label="More options" @click="showActions = true">
+          <LucideEllipsisVertical :size="20" />
+        </button>
+      </template>
+    </AppHeader>
 
     <!-- Contract summary card -->
     <section class="status-card">
       <div class="status-card__top">
-        <div class="status-card__icon" :class="`status-card__icon--${overallStatus}`">
+        <div
+          class="status-card__icon"
+          :class="`status-card__icon--${overallStatus}`"
+        >
           <component :is="overallIcon" :size="24" />
         </div>
         <div class="status-card__meta">
@@ -36,7 +41,10 @@
       </div>
 
       <!-- Overall status badge -->
-      <div class="status-card__badge" :class="`status-card__badge--${overallStatus}`">
+      <div
+        class="status-card__badge"
+        :class="`status-card__badge--${overallStatus}`"
+      >
         <component :is="overallIcon" :size="14" />
         <span>{{ overallLabel }}</span>
       </div>
@@ -45,9 +53,14 @@
     <!-- Progress bar -->
     <section class="status-progress">
       <div class="status-progress__bar">
-        <div class="status-progress__fill" :style="{ width: progressPercent + '%' }" />
+        <div
+          class="status-progress__fill"
+          :style="{ width: progressPercent + '%' }"
+        />
       </div>
-      <span class="status-progress__label">{{ completedSteps }} of {{ steps.length }} steps complete</span>
+      <span class="status-progress__label"
+        >{{ completedSteps }} of {{ steps.length }} steps complete</span
+      >
     </section>
 
     <!-- Timeline -->
@@ -63,18 +76,27 @@
         }"
       >
         <!-- Connector line (not on first) -->
-        <div v-if="i > 0" class="timeline-step__line" :class="{ 'timeline-step__line--done': step.status === 'done' }" />
+        <div
+          v-if="i > 0"
+          class="timeline-step__line"
+          :class="{ 'timeline-step__line--done': step.status === 'done' }"
+        />
 
         <div class="timeline-step__dot">
           <LucideCheck v-if="step.status === 'done'" :size="14" />
-          <div v-else-if="step.status === 'active'" class="timeline-step__pulse" />
+          <div
+            v-else-if="step.status === 'active'"
+            class="timeline-step__pulse"
+          />
           <span v-else class="timeline-step__number">{{ i + 1 }}</span>
         </div>
 
         <div class="timeline-step__content">
           <div class="timeline-step__header">
             <h3 class="timeline-step__title">{{ step.title }}</h3>
-            <span v-if="step.timestamp" class="timeline-step__time">{{ step.timestamp }}</span>
+            <span v-if="step.timestamp" class="timeline-step__time">{{
+              step.timestamp
+            }}</span>
           </div>
           <p class="timeline-step__desc">{{ step.description }}</p>
 
@@ -96,13 +118,18 @@
               class="timeline-signer"
               :class="`timeline-signer--${signer.status}`"
             >
-              <div class="timeline-signer__avatar">{{ signer.name.charAt(0) }}</div>
+              <div class="timeline-signer__avatar">
+                {{ signer.name.charAt(0) }}
+              </div>
               <div class="timeline-signer__info">
                 <span class="timeline-signer__name">{{ signer.name }}</span>
                 <span class="timeline-signer__status">
-                  <LucideCircleCheck v-if="signer.status === 'signed'" :size="12" />
+                  <LucideCircleCheck
+                    v-if="signer.status === 'signed'"
+                    :size="12"
+                  />
                   <LucideClock v-else :size="12" />
-                  {{ signer.status === 'signed' ? 'Signed' : 'Pending' }}
+                  {{ signer.status === "signed" ? "Signed" : "Pending" }}
                 </span>
               </div>
             </div>
@@ -121,7 +148,10 @@
           <h3 class="status-escrow__title">Escrow</h3>
           <p class="status-escrow__subtitle">{{ contract.escrow.condition }}</p>
         </div>
-        <div class="status-escrow__badge" :class="`status-escrow__badge--${contract.escrow.status}`">
+        <div
+          class="status-escrow__badge"
+          :class="`status-escrow__badge--${contract.escrow.status}`"
+        >
           {{ escrowStatusLabel }}
         </div>
       </div>
@@ -137,13 +167,20 @@
           v-for="(es, i) in escrowSteps"
           :key="es.label"
           class="escrow-step"
-          :class="{ 'escrow-step--done': es.done, 'escrow-step--active': es.active }"
+          :class="{
+            'escrow-step--done': es.done,
+            'escrow-step--active': es.active,
+          }"
         >
           <div class="escrow-step__dot">
             <LucideCheck v-if="es.done" :size="10" />
           </div>
           <span class="escrow-step__label">{{ es.label }}</span>
-          <div v-if="i < escrowSteps.length - 1" class="escrow-step__connector" :class="{ 'escrow-step__connector--done': es.done }" />
+          <div
+            v-if="i < escrowSteps.length - 1"
+            class="escrow-step__connector"
+            :class="{ 'escrow-step__connector--done': es.done }"
+          />
         </div>
       </div>
     </section>
@@ -179,7 +216,10 @@
           <LucideDownload :size="18" />
           <span>Download PDF</span>
         </button>
-        <button class="actions-menu__item actions-menu__item--danger" @click="handleCancel">
+        <button
+          class="actions-menu__item actions-menu__item--danger"
+          @click="handleCancel"
+        >
           <LucideCircleX :size="18" />
           <span>Cancel contract</span>
         </button>
@@ -203,15 +243,14 @@ import {
   LucideWallet,
 } from "lucide-vue-next";
 
-definePageMeta({ layout: "dashboard" });
-
 const route = useRoute();
 const { addToast } = useToast();
 const showActions = ref(false);
 
 useSeoMeta({
   title: "Contract Status",
-  description: "Track the progress of your Pact AI contract — signatures, escrow funding, and completion status.",
+  description:
+    "Track the progress of your Pact AI contract — signatures, escrow funding, and completion status.",
 });
 
 type StepStatus = "done" | "active" | "pending";
@@ -273,11 +312,22 @@ const steps = computed<Step[]>(() => {
       id: "signatures",
       title: "Signatures",
       description: "Both parties must sign to activate the contract.",
-      status: contract.currentStep >= 3 ? "done" : contract.currentStep === 2 ? "active" : "pending",
+      status:
+        contract.currentStep >= 3
+          ? "done"
+          : contract.currentStep === 2
+            ? "active"
+            : "pending",
       timestamp: contract.currentStep >= 3 ? "Mar 21, 10:15 AM" : undefined,
       signers: [
-        { name: contract.sender, status: contract.currentStep >= 2 ? "signed" : "pending" },
-        { name: contract.recipient, status: contract.currentStep >= 3 ? "signed" : "pending" },
+        {
+          name: contract.sender,
+          status: contract.currentStep >= 2 ? "signed" : "pending",
+        },
+        {
+          name: contract.recipient,
+          status: contract.currentStep >= 3 ? "signed" : "pending",
+        },
       ],
     },
   ];
@@ -288,22 +338,44 @@ const steps = computed<Step[]>(() => {
         id: "escrow-funded",
         title: "Escrow funded",
         description: `${contract.escrow.amount} held securely until conditions are met.`,
-        status: contract.escrow.status === "unfunded"
-          ? (contract.currentStep >= 3 ? "active" : "pending")
-          : "done",
-        timestamp: contract.escrow.status !== "unfunded" ? "Mar 21, 10:20 AM" : undefined,
-        action: contract.escrow.status === "unfunded" && contract.currentStep >= 3
-          ? { label: "Fund escrow", icon: LucideWallet, handler: () => addToast("info", "Redirecting to payment...") }
-          : undefined,
+        status:
+          contract.escrow.status === "unfunded"
+            ? contract.currentStep >= 3
+              ? "active"
+              : "pending"
+            : "done",
+        timestamp:
+          contract.escrow.status !== "unfunded"
+            ? "Mar 21, 10:20 AM"
+            : undefined,
+        action:
+          contract.escrow.status === "unfunded" && contract.currentStep >= 3
+            ? {
+                label: "Fund escrow",
+                icon: LucideWallet,
+                handler: () => addToast("info", "Redirecting to payment..."),
+              }
+            : undefined,
       },
       {
         id: "delivery",
         title: "Work delivered",
         description: "Deliverables submitted and awaiting review.",
-        status: contract.currentStep >= 5 ? "done" : contract.currentStep === 4 ? "active" : "pending",
-        action: contract.currentStep === 4
-          ? { label: "Confirm delivery", icon: LucideFileCheck, handler: () => addToast("info", "Opening delivery confirmation...") }
-          : undefined,
+        status:
+          contract.currentStep >= 5
+            ? "done"
+            : contract.currentStep === 4
+              ? "active"
+              : "pending",
+        action:
+          contract.currentStep === 4
+            ? {
+                label: "Confirm delivery",
+                icon: LucideFileCheck,
+                handler: () =>
+                  addToast("info", "Opening delivery confirmation..."),
+              }
+            : undefined,
       },
       {
         id: "escrow-released",
@@ -321,14 +393,19 @@ const steps = computed<Step[]>(() => {
     description: contract.escrow
       ? "All obligations fulfilled. Payment released."
       : "Both parties have signed. Contract is legally binding.",
-    status: contract.currentStep >= (contract.escrow ? 7 : 4) ? "done" : "pending",
+    status:
+      contract.currentStep >= (contract.escrow ? 7 : 4) ? "done" : "pending",
   });
 
   return base;
 });
 
-const completedSteps = computed(() => steps.value.filter((s) => s.status === "done").length);
-const progressPercent = computed(() => Math.round((completedSteps.value / steps.value.length) * 100));
+const completedSteps = computed(
+  () => steps.value.filter((s) => s.status === "done").length,
+);
+const progressPercent = computed(() =>
+  Math.round((completedSteps.value / steps.value.length) * 100),
+);
 
 const overallStatus = computed(() => {
   if (completedSteps.value === steps.value.length) return "complete";
@@ -337,12 +414,20 @@ const overallStatus = computed(() => {
 });
 
 const overallLabel = computed(() => {
-  const map = { complete: "Completed", active: "In progress", pending: "Pending" };
+  const map = {
+    complete: "Completed",
+    active: "In progress",
+    pending: "Pending",
+  };
   return map[overallStatus.value];
 });
 
 const overallIcon = computed(() => {
-  const map: Record<string, Component> = { complete: LucideCircleCheck, active: LucideLoader, pending: LucideClock };
+  const map: Record<string, Component> = {
+    complete: LucideCircleCheck,
+    active: LucideLoader,
+    pending: LucideClock,
+  };
   return map[overallStatus.value];
 });
 
@@ -368,9 +453,12 @@ const escrowSteps = computed(() => {
 });
 
 const handleViewContract = () => navigateTo(`/sign/${route.params.id}`);
-const handleDownload = () => addToast("info", "PDF download will be available shortly.");
+const handleDownload = () =>
+  addToast("info", "PDF download will be available shortly.");
 const handleShare = () => {
-  navigator.clipboard.writeText(`${window.location.origin}/sign/${route.params.id}`);
+  navigator.clipboard.writeText(
+    `${window.location.origin}/sign/${route.params.id}`,
+  );
   addToast("success", "Contract link copied to clipboard.");
 };
 const handleResend = () => {
@@ -391,40 +479,6 @@ const handleCancel = () => {
 }
 
 /* Header */
-.status-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-}
-
-.status-header__back,
-.status-header__more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: none;
-  border: 1.5px solid rgba(45, 1, 2, 0.08);
-  color: var(--color-primary);
-  transition: background 0.15s;
-}
-
-.status-header__back:hover,
-.status-header__more:hover {
-  background: rgba(45, 1, 2, 0.04);
-}
-
-.status-header__title {
-  flex: 1;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 0;
-}
-
 /* Contract card */
 .status-card {
   margin: 0 16px 16px;
@@ -651,8 +705,15 @@ const handleCancel = () => {
 }
 
 @keyframes dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.3); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.3);
+  }
 }
 
 .timeline-step__number {
