@@ -115,11 +115,16 @@ const handleGoogleSignUp = () => {
   // TODO: implement Google OAuth
 };
 
+const { authenticateUser } = useSupabaseClient();
+
 const handleSubmit = async () => {
   if (!isFormValid.value) return;
   isSubmitting.value = true;
   try {
-    // TODO: implement sign-up API call
+    await authenticateUser(form.email, form.password, "signup", {
+      first_name: form.firstName,
+      last_name: form.lastName,
+    });
   } finally {
     isSubmitting.value = false;
   }

@@ -71,21 +71,25 @@ export const useSupabaseClient = () => {
     email: string,
     password: string,
     type: "login" | "signup",
+    metadata?: { first_name?: string; last_name?: string },
   ) => {
     try {
       if (!supabase.value) await initializeSupabase();
       if (!supabase.value) throw new Error("Supabase client not initialized");
       if (type === "login") {
         const { data, error } = await supabase.value.auth.signInWithPassword({
-          email: email,
-          password: password,
+          email,
+          password,
         });
         if (error) throw error;
         await handleAuth(data);
       } else if (type === "signup") {
         const { data, error } = await supabase.value.auth.signUp({
-          email: email,
-          password: password,
+          email,
+          password,
+          options: {
+            data: metadata,
+          },
         });
         if (error) throw error;
         await handleAuth(data);
@@ -105,6 +109,7 @@ export const useSupabaseClient = () => {
     user: User | null;
     session: Session | null;
   }) => {
+    console.log("data", data);
     if (data.user && data.session) {
       setUser(data.user);
       await nextTick();
