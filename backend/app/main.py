@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import contracts, signing, milestones, health
+from app.routes import chat_routes
+from app.routes import signing_actions
 
 app = FastAPI(
     title="PactAI API",
@@ -20,3 +22,5 @@ app.include_router(health.router)
 app.include_router(contracts.router, prefix="/contracts", tags=["Contracts"])
 app.include_router(signing.router, prefix="/signing", tags=["Signing"])
 app.include_router(milestones.router, prefix="/milestones", tags=["Milestones"])
+app.include_router(chat_routes.router, prefix="", tags=["Chat"]) 
+app.include_router(signing_actions.router, prefix="", tags=["Signing Actions"])

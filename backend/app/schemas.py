@@ -88,6 +88,39 @@ class SendSigningLinksResponse(BaseModel):
     service_provider: dict  # always {"note": "Signs in-app via authenticated session. No email sent."}
 
 
+# ── Chat ───────────────────────────────────────────────────────────────────────
+class MessageResponse(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+    created_at: Optional[datetime] = None
+
+
+class ChatRequest(BaseModel):
+    contract_id: str
+    content: Optional[str] = None
+    image_url: Optional[str] = None
+    input_type: Literal["paste", "screenshot", "manual"] = "paste"
+
+
+class ChatResponse(BaseModel):
+    messages: list[MessageResponse]
+    ready: bool = False
+
+
+# ── Chat summaries (History) ──────────────────────────────────────────────────
+class ChatSummary(BaseModel):
+    id: str
+    title: Optional[str] = None
+    preview: Optional[str] = None
+    time: Optional[str] = None
+    date: Optional[str] = None
+    status: Optional[str] = None
+
+
+class ChatsResponse(BaseModel):
+    chats: list[ChatSummary]
+
+
 # ── Generic ───────────────────────────────────────────────────────────────────
 
 class ErrorResponse(BaseModel):

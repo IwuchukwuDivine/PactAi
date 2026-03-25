@@ -2,6 +2,7 @@ import httpx
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from datetime import datetime
 
 from app.supabase_client import get_supabase
 from app.config import get_settings
@@ -12,6 +13,10 @@ from app.schemas import (
     SendSigningLinksRequest,
     SendSigningLinksResponse,
     ClientSigningInfo,
+    # chat schemas
+    ChatRequest,
+    ChatResponse,
+    MessageResponse,
 )
 
 settings = get_settings()
@@ -316,3 +321,287 @@ def get_escrow_conditions(contract_id: str) -> list[dict]:
         .execute()
     )
     return response.data
+
+
+# ── Chat flow ─────────────────────────────────────────────────────────────────
+
+async def chat(request: ChatRequest) -> ChatResponse:
+    """Conversational flow sitting on top of extract-terms.
+
+    - Fetches message history for the contract
+    - On first message, also includes the contract.raw_input or screenshot_url
+    - Sends full convo to Claude with a conversational system prompt
+    - Stores both the user message and Claude's reply in the messages table
+    - If Claude signals it's ready, calls extract_terms to produce structured terms
+    """
+    contract_id = request.contract_id
+
+    # Build incoming user content and images list
+    user_text = request.content or ""
+    images = []
+    if request.image_url:
+        images = [request.image_url]
+        # provide a short content marker if no text
+        if not user_text:
+            user_text = "[screenshot]"
+
+    # Fetch existing message history for this contract
+    resp = (
+        supabase.table("messages")
+        .select("*")
+        .eq("contract_id", contract_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    history = resp.data or []
+
+    # Build conversation array (only user/assistant roles included in messages)
+    convo = []
+    for m in history:
+        role = m.get("role")
+        content = m.get("content")
+        # If stored images exist, expand content marker
+        if m.get("images") and not content:
+            content = "[screenshot]"
+        if role in ("user", "assistant") and content:
+            convo.append({"role": role, "content": content})
+
+    # On first message, also read raw_input or screenshot from contract row
+    if not history:
+        # Only seed from the stored contract row when the incoming request
+        # did NOT include its own content or image. This prevents sending
+        # the same input twice on the very first user turn.
+        if not request.content and not request.image_url:
+            contract = get_contract(contract_id)
+            if contract:
+                if contract.get("raw_input"):
+                    convo.append({"role": "user", "content": contract.get("raw_input")})
+                elif contract.get("screenshot_url"):
+                    convo.append({"role": "user", "content": f"[screenshot] {contract.get('screenshot_url')}"})
+
+    # Append current user message
+    convo.append({"role": "user", "content": user_text})
+
+    # Build the user_assistant_messages per Anthropic expected shape
+    user_assistant_messages = [
+        {"role": m["role"], "content": m["content"]}
+        for m in convo
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ]
+
+    # System prompt: instruct Claude to be conversational and to signal readiness
+    system_prompt = (
+        "You are PactAI's conversational assistant. Your job is to help the user turn informal "
+        "input (pasted text, chat screenshots, or manual typing) into a formal contract by: "
+        "1) Summarising what you understand so far; 2) Asking a single clarifying question at a time "
+        "whenever something is missing or ambiguous; and 3) When you have enough information to "
+        "produce the final structured extraction, append the token <READY_TO_EXTRACT> at the end of your reply. "
+        "Do not perform the final structured extraction yourself — simply indicate readiness with the token so the system can call the extract-terms function."
+    )
+
+    body = {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1000,
+        "system": system_prompt,
+        "messages": user_assistant_messages,
+    }
+
+    headers = {
+        "x-api-key": settings.anthropic_api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+
+    if resp.status_code != 200:
+        raise Exception(f"Anthropic API error: {resp.status_code} {resp.text}")
+
+    result = resp.json()
+
+    # Parse assistant text — per provided API structure
+    ai_text = ""
+    try:
+        ai_text = result["content"][0]["text"]
+    except Exception:
+        # Fallback if structure differs
+        ai_text = result.get("text") or ""
+
+    # Detect readiness marker
+    ready = False
+    if "<READY_TO_EXTRACT>" in ai_text:
+        ready = True
+        ai_text = ai_text.replace("<READY_TO_EXTRACT>", "").strip()
+    else:
+        # Heuristic fallback: look for indicative phrases
+        lowered = ai_text.lower()
+        if any(k in lowered for k in ("ready to generate", "ready to extract", "i have enough", "i'm ready to generate", "i am ready to generate", "generate the contract", "ready to proceed")):
+            ready = True
+
+    now_iso = datetime.utcnow().isoformat()
+
+    # Prepare rows to insert into messages table
+    rows = []
+    user_row = {
+        "contract_id": contract_id,
+        "role": "user",
+        "content": user_text,
+    }
+    if images:
+        user_row["images"] = images
+
+    assistant_row = {
+        "contract_id": contract_id,
+        "role": "assistant",
+        "content": ai_text,
+        "metadata": {"ready": ready},
+    }
+
+    rows.append(user_row)
+    rows.append(assistant_row)
+
+    # Persist messages (let DB set created_at)
+    try:
+        supabase.table("messages").insert(rows).execute()
+    except Exception as e:
+        print("Failed to persist messages:", e)
+
+    # If ready, trigger the extract_terms flow using contract's stored raw input / screenshot
+    if ready:
+        contract = get_contract(contract_id)
+        if contract:
+            ext_req = ExtractTermsRequest(
+                contract_id=contract_id,
+                text=contract.get("raw_input"),
+                image_url=contract.get("screenshot_url"),
+                input_type=contract.get("input_type", "paste"),
+            )
+            try:
+                await extract_terms(ext_req)
+            except Exception as e:
+                print("extract_terms failed from chat flow:", e)
+
+    # Return assistant message and ready flag
+    msg = MessageResponse(role="assistant", content=ai_text, created_at=datetime.utcnow())
+
+    return ChatResponse(messages=[msg], ready=ready)
+
+
+# ── Chat helpers ──────────────────────────────────────────────────────────────
+
+def get_messages(contract_id: str) -> list[dict]:
+    """Return ordered messages for a contract. Maps 'assistant' role to 'ai' for frontend."""
+    resp = (
+        supabase.table("messages")
+        .select("id, role, content, metadata, images, created_at")
+        .eq("contract_id", contract_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    rows = resp.data or []
+    result = []
+    for r in rows:
+        role = r.get("role")
+        frontend_role = "ai" if role == "assistant" else role
+        result.append({
+            "id": r.get("id"),
+            "role": frontend_role,
+            "text": r.get("content"),
+            "images": r.get("images") or [],
+            "metadata": r.get("metadata"),
+            "created_at": r.get("created_at"),
+        })
+    return result
+
+
+def get_chats(owner_id: str) -> list[dict]:
+    """Return chat summaries for the owner by listing contracts and latest message."""
+    # Fetch contracts for owner ordered by updated_at desc
+    resp = (
+        supabase.table("contracts")
+        .select("id, title, status, raw_input, reference, updated_at")
+        .eq("owner_id", owner_id)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    contracts = resp.data or []
+    chats = []
+    for c in contracts:
+        cid = c.get("id")
+        # Fetch latest message preview
+        mresp = (
+            supabase.table("messages")
+            .select("content, images, created_at")
+            .eq("contract_id", cid)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        m = (mresp.data or [None])[0]
+        preview = None
+        time = None
+        date = None
+        if m:
+            preview = (m.get("content") or "")[:120]
+            created = m.get("created_at")
+            time = created
+            date = created
+            # If images exist and no text, set preview to indicate images
+            if not preview and m.get("images"):
+                preview = "[screenshot]"
+        else:
+            # fallback preview from contract raw_input
+            raw = c.get("raw_input")
+            preview = (raw or "")[:120] if raw else ""
+            time = c.get("updated_at")
+            date = c.get("updated_at")
+
+        chats.append({
+            "id": cid,
+            "title": c.get("title") or c.get("reference"),
+            "preview": preview,
+            "time": time,
+            "date": date,
+            "status": c.get("status"),
+        })
+    return chats
+
+
+def decline_signature(contract_id: str, signature_id: str, reason: str) -> dict:
+    """Mark a signature row as rejected with a reason and create a contract_events entry."""
+    # Validate signature exists and belongs to contract
+    resp = supabase.table("signatures").select("id, contract_id, status").eq("id", signature_id).single().execute()
+    sig = resp.data
+    if not sig:
+        raise Exception("Signature not found")
+    if str(sig.get("contract_id")) != contract_id:
+        raise Exception("Signature does not belong to contract")
+
+    # Update signature row
+    supabase.table("signatures").update({
+        "status": "rejected",
+        "rejection_note": reason,
+        "rejected_at": datetime.utcnow().isoformat(),
+        "status_updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", signature_id).execute()
+
+    # Insert event
+    supabase.table("contract_events").insert({
+        "contract_id": contract_id,
+        "actor_role": "client",
+        "event_type": "signature_rejected",
+        "metadata": {"signature_id": signature_id, "reason": reason},
+    }).execute()
+
+    return {"success": True}
+
+
+def get_contract_pdf(contract_id: str) -> dict:
+    """Return the contract_pdf_url for a contract or raise if not found."""
+    resp = supabase.table("contracts").select("contract_pdf_url").eq("id", contract_id).single().execute()
+    c = resp.data
+    if not c or not c.get("contract_pdf_url"):
+        raise Exception("No PDF available for this contract")
+    return {"contract_pdf_url": c.get("contract_pdf_url")}
