@@ -12,10 +12,10 @@
       <span class="bottom-tab__label">{{ tab.name }}</span>
     </NuxtLink>
 
-    <!-- Center create button -->
+    <!-- Center chat button -->
     <div class="bottom-tab__center">
-      <NuxtLink to="/Create" class="bottom-tab__create" :class="{ 'bottom-tab__create--active': isActive('/Create') }">
-        <LucidePlus :size="26" :stroke-width="2.5" />
+      <NuxtLink to="/Chat" class="bottom-tab__create" :class="{ 'bottom-tab__create--active': isActive('/Chat') }">
+        <LucideSparkles :size="24" :stroke-width="2.5" />
       </NuxtLink>
     </div>
 
@@ -36,9 +36,9 @@
 <script setup lang="ts">
 import {
   LucideHome,
-  LucidePlus,
+  LucideSparkles,
   LucideFolderOpen,
-  LucideClockArrowUp,
+  LucideMessagesSquare,
   LucideUser,
 } from "lucide-vue-next";
 
@@ -52,7 +52,7 @@ const leftTabs = [
 ];
 
 const rightTabs = [
-  { name: "Activity", icon: LucideClockArrowUp, path: "/Activity" },
+  { name: "History", icon: LucideMessagesSquare, path: "/History" },
   { name: "Profile", icon: LucideUser, path: "/Profile" },
 ];
 

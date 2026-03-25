@@ -1,11 +1,12 @@
 <template>
   <div class="contracts">
-    <header class="contracts__header">
-      <h1 class="contracts__title">Contracts</h1>
-      <button class="contracts__filter" aria-label="Filter">
-        <LucideListFilter :size="20" />
-      </button>
-    </header>
+    <AppHeader title="Contracts">
+      <template #action>
+        <button aria-label="Filter">
+          <LucideListFilter :size="20" />
+        </button>
+      </template>
+    </AppHeader>
 
     <!-- Tabs -->
     <div class="contracts__tabs">
@@ -31,9 +32,9 @@
         {{ emptyMessage }}
       </p>
       <AppButton
-        title="Create your first"
+        title="Start a chat"
         variant="outline"
-        @click="navigateTo('/Create')"
+        @click="navigateTo('/Chat')"
       />
     </div>
   </div>
@@ -72,37 +73,6 @@ const emptyMessage = computed(() => {
   padding: 20px 20px 0;
   max-width: 560px;
   margin: 0 auto;
-}
-
-.contracts__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.contracts__title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 0;
-}
-
-.contracts__filter {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(45, 1, 2, 0.04);
-  border: none;
-  color: var(--color-primary);
-  cursor: pointer;
-}
-
-.contracts__filter:hover {
-  background: rgba(45, 1, 2, 0.08);
 }
 
 /* Tabs */
