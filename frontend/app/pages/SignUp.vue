@@ -93,11 +93,12 @@
 <script setup lang="ts">
 import { emailRules, passwordRules, requiredRules } from "~/utils/types/rules";
 
-definePageMeta({ layout: false });
+definePageMeta({ layout: false, middleware: "auth" });
 
 useSeoMeta({
   title: "Create Account",
-  description: "Sign up for Pact AI to turn WhatsApp chats, DMs, and emails into legally enforceable contracts with built-in escrow.",
+  description:
+    "Sign up for Pact AI to turn WhatsApp chats, DMs, and emails into legally enforceable contracts with built-in escrow.",
 });
 
 const form = reactive({
@@ -114,11 +115,16 @@ const handleGoogleSignUp = () => {
   // TODO: implement Google OAuth
 };
 
+const { authenticateUser } = useSupabaseClient();
+
 const handleSubmit = async () => {
   if (!isFormValid.value) return;
   isSubmitting.value = true;
   try {
-    // TODO: implement sign-up API call
+    await authenticateUser(form.email, form.password, "signup", {
+      first_name: form.firstName,
+      last_name: form.lastName,
+    });
   } finally {
     isSubmitting.value = false;
   }
