@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # supabase
     supabase_url: str
     supabase_service_role_key: str
+    supabase_anon_key: str
 
     # anthropic
     anthropic_api_key: str
@@ -23,6 +24,10 @@ class Settings(BaseSettings):
 
     # App
     app_url: str  # e.g. https://pactai.com — used for signing link URLs
+
+    # email
+    gmail_address: str
+    gmail_app_password: str
 
     class Config:
         env_file = ".env"
