@@ -14,23 +14,23 @@
         <LucideUser :size="32" />
       </div>
       <div class="profile__info">
-        <p class="profile__name">User</p>
-        <p class="profile__email">user@email.com</p>
+        <p class="profile__name">{{ fullName }}</p>
+        <p class="profile__email">{{ email }}</p>
       </div>
     </div>
 
     <!-- Stats row -->
     <div class="profile__stats">
       <div class="profile__stat">
-        <span class="profile__stat-value">0</span>
+        <span class="profile__stat-value">{{ stats.created }}</span>
         <span class="profile__stat-label">Created</span>
       </div>
       <div class="profile__stat">
-        <span class="profile__stat-value">0</span>
+        <span class="profile__stat-value">{{ stats.signed }}</span>
         <span class="profile__stat-label">Signed</span>
       </div>
       <div class="profile__stat">
-        <span class="profile__stat-value">0</span>
+        <span class="profile__stat-value">{{ stats.escrow }}</span>
         <span class="profile__stat-label">Escrow</span>
       </div>
     </div>
@@ -60,7 +60,7 @@
     </nav>
 
     <!-- Sign out -->
-    <button class="profile__signout">
+    <button class="profile__signout" @click="handleLogout">
       <LucideLogOut :size="18" />
       Sign out
     </button>
@@ -68,6 +68,9 @@
 </template>
 
 <script setup lang="ts">
+import type { Contract } from "~/utils/types/api";
+import { useContractsQuery } from "~/composables/useRequest";
+
 definePageMeta({ layout: "dashboard" });
 
 useSeoMeta({
@@ -75,6 +78,31 @@ useSeoMeta({
   description:
     "Manage your Pact AI profile, account settings, and preferences.",
 });
+
+const { user } = useAuth();
+const { logoutUser } = useSupabaseClient();
+const { data: contractsData } = useContractsQuery();
+const contracts = computed<Contract[]>(() => contractsData.value ?? []);
+
+const fullName = computed(() => {
+  const meta = user.value?.user_metadata;
+  if (meta?.first_name || meta?.last_name) {
+    return [meta.first_name, meta.last_name].filter(Boolean).join(" ");
+  }
+  return "Guest";
+});
+
+const email = computed(() => user.value?.email ?? "—");
+
+const stats = computed(() => ({
+  created: contracts.value.length,
+  signed: contracts.value.filter((c) => c.status === "signed" || c.status === "completed").length,
+  escrow: contracts.value.filter((c) => c.escrow_proposed).length,
+}));
+
+const handleLogout = async () => {
+  await logoutUser();
+};
 </script>
 
 <style scoped>

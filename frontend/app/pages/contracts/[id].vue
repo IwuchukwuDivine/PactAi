@@ -13,206 +13,225 @@
       </template>
     </AppHeader>
 
-    <!-- Contract summary card -->
-    <section class="status-card">
-      <div class="status-card__top">
-        <div
-          class="status-card__icon"
-          :class="`status-card__icon--${overallStatus}`"
-        >
-          <component :is="overallIcon" :size="24" />
-        </div>
-        <div class="status-card__meta">
-          <h2 class="status-card__title">{{ contract.title }}</h2>
-          <p class="status-card__date">Created {{ contract.createdAt }}</p>
-        </div>
-      </div>
+    <!-- Loading state -->
+    <div v-if="isLoading || !contract" class="status-loading">
+      <div class="status-loading__spinner" />
+      <p>Loading contract…</p>
+    </div>
 
-      <div class="status-card__parties">
-        <div class="status-card__party">
-          <span class="status-card__party-label">From</span>
-          <span class="status-card__party-name">{{ contract.sender }}</span>
-        </div>
-        <LucideArrowRight :size="14" class="status-card__arrow" />
-        <div class="status-card__party">
-          <span class="status-card__party-label">To</span>
-          <span class="status-card__party-name">{{ contract.recipient }}</span>
-        </div>
-      </div>
-
-      <!-- Overall status badge -->
-      <div
-        class="status-card__badge"
-        :class="`status-card__badge--${overallStatus}`"
-      >
-        <component :is="overallIcon" :size="14" />
-        <span>{{ overallLabel }}</span>
-      </div>
-    </section>
-
-    <!-- Progress bar -->
-    <section class="status-progress">
-      <div class="status-progress__bar">
-        <div
-          class="status-progress__fill"
-          :style="{ width: progressPercent + '%' }"
-        />
-      </div>
-      <span class="status-progress__label"
-        >{{ completedSteps }} of {{ steps.length }} steps complete</span
-      >
-    </section>
-
-    <!-- Timeline -->
-    <section class="status-timeline">
-      <div
-        v-for="(step, i) in steps"
-        :key="step.id"
-        class="timeline-step"
-        :class="{
-          'timeline-step--done': step.status === 'done',
-          'timeline-step--active': step.status === 'active',
-          'timeline-step--pending': step.status === 'pending',
-        }"
-      >
-        <!-- Connector line (not on first) -->
-        <div
-          v-if="i > 0"
-          class="timeline-step__line"
-          :class="{ 'timeline-step__line--done': step.status === 'done' }"
-        />
-
-        <div class="timeline-step__dot">
-          <LucideCheck v-if="step.status === 'done'" :size="14" />
+    <template v-else>
+      <!-- Contract summary card -->
+      <section class="status-card">
+        <div class="status-card__top">
           <div
-            v-else-if="step.status === 'active'"
-            class="timeline-step__pulse"
-          />
-          <span v-else class="timeline-step__number">{{ i + 1 }}</span>
+            class="status-card__icon"
+            :class="`status-card__icon--${overallStatus}`"
+          >
+            <component :is="overallIcon" :size="24" />
+          </div>
+          <div class="status-card__meta">
+            <h2 class="status-card__title">{{ contract.title }}</h2>
+            <p class="status-card__date">
+              <span v-if="contract.reference" class="status-card__ref">{{
+                contract.reference
+              }}</span>
+              Created {{ contract.createdAt }}
+            </p>
+          </div>
         </div>
 
-        <div class="timeline-step__content">
-          <div class="timeline-step__header">
-            <h3 class="timeline-step__title">{{ step.title }}</h3>
-            <span v-if="step.timestamp" class="timeline-step__time">{{
-              step.timestamp
+        <div class="status-card__parties">
+          <div class="status-card__party">
+            <span class="status-card__party-label">From</span>
+            <span class="status-card__party-name">{{ contract.sender }}</span>
+          </div>
+          <LucideArrowRight :size="14" class="status-card__arrow" />
+          <div class="status-card__party">
+            <span class="status-card__party-label">To</span>
+            <span class="status-card__party-name">{{
+              contract.recipient
             }}</span>
           </div>
-          <p class="timeline-step__desc">{{ step.description }}</p>
+        </div>
 
-          <!-- Action button for active step -->
-          <AppButton
-            v-if="step.status === 'active' && step.action"
-            :title="step.action.label"
-            :variant="step.action.variant || 'primary'"
-            :prepend-icon="step.action.icon"
-            class="timeline-step__action"
-            @click="step.action.handler()"
+        <!-- Overall status badge -->
+        <div
+          class="status-card__badge"
+          :class="`status-card__badge--${overallStatus}`"
+        >
+          <component :is="overallIcon" :size="14" />
+          <span>{{ overallLabel }}</span>
+        </div>
+      </section>
+
+      <!-- Progress bar -->
+      <section class="status-progress">
+        <div class="status-progress__bar">
+          <div
+            class="status-progress__fill"
+            :style="{ width: progressPercent + '%' }"
+          />
+        </div>
+        <span class="status-progress__label"
+          >{{ completedSteps }} of {{ steps.length }} steps complete</span
+        >
+      </section>
+
+      <!-- Timeline -->
+      <section class="status-timeline">
+        <div
+          v-for="(step, i) in steps"
+          :key="step.id"
+          class="timeline-step"
+          :class="{
+            'timeline-step--done': step.status === 'done',
+            'timeline-step--active': step.status === 'active',
+            'timeline-step--pending': step.status === 'pending',
+          }"
+        >
+          <!-- Connector line (not on first) -->
+          <div
+            v-if="i > 0"
+            class="timeline-step__line"
+            :class="{ 'timeline-step__line--done': step.status === 'done' }"
           />
 
-          <!-- Signer chips for signature step -->
-          <div v-if="step.signers" class="timeline-step__signers">
+          <div class="timeline-step__dot">
+            <LucideCheck v-if="step.status === 'done'" :size="14" />
             <div
-              v-for="signer in step.signers"
-              :key="signer.name"
-              class="timeline-signer"
-              :class="`timeline-signer--${signer.status}`"
-            >
-              <div class="timeline-signer__avatar">
-                {{ signer.name.charAt(0) }}
-              </div>
-              <div class="timeline-signer__info">
-                <span class="timeline-signer__name">{{ signer.name }}</span>
-                <span class="timeline-signer__status">
-                  <LucideCircleCheck
-                    v-if="signer.status === 'signed'"
-                    :size="12"
-                  />
-                  <LucideClock v-else :size="12" />
-                  {{ signer.status === "signed" ? "Signed" : "Pending" }}
-                </span>
+              v-else-if="step.status === 'active'"
+              class="timeline-step__pulse"
+            />
+            <span v-else class="timeline-step__number">{{ i + 1 }}</span>
+          </div>
+
+          <div class="timeline-step__content">
+            <div class="timeline-step__header">
+              <h3 class="timeline-step__title">{{ step.title }}</h3>
+              <span v-if="step.timestamp" class="timeline-step__time">{{
+                step.timestamp
+              }}</span>
+            </div>
+            <p class="timeline-step__desc">{{ step.description }}</p>
+
+            <!-- Action button for active step -->
+            <AppButton
+              v-if="step.status === 'active' && step.action"
+              :title="step.action.label"
+              :variant="step.action.variant || 'primary'"
+              :prepend-icon="step.action.icon"
+              class="timeline-step__action"
+              @click="step.action.handler()"
+            />
+
+            <!-- Signer chips for signature step -->
+            <div v-if="step.signers" class="timeline-step__signers">
+              <div
+                v-for="signer in step.signers"
+                :key="signer.name"
+                class="timeline-signer"
+                :class="`timeline-signer--${signer.status}`"
+              >
+                <div class="timeline-signer__avatar">
+                  {{ signer.name.charAt(0) }}
+                </div>
+                <div class="timeline-signer__info">
+                  <span class="timeline-signer__name">{{ signer.name }}</span>
+                  <span class="timeline-signer__status">
+                    <LucideCircleCheck
+                      v-if="signer.status === 'signed'"
+                      :size="12"
+                    />
+                    <LucideClock v-else :size="12" />
+                    {{ signer.status === "signed" ? "Signed" : "Pending" }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Escrow tracker (only when escrow exists) -->
-    <section v-if="contract.escrow" class="status-escrow">
-      <div class="status-escrow__header">
-        <div class="status-escrow__icon">
-          <LucideLock :size="18" />
-        </div>
-        <div>
-          <h3 class="status-escrow__title">Escrow</h3>
-          <p class="status-escrow__subtitle">{{ contract.escrow.condition }}</p>
-        </div>
-        <div
-          class="status-escrow__badge"
-          :class="`status-escrow__badge--${contract.escrow.status}`"
-        >
-          {{ escrowStatusLabel }}
-        </div>
-      </div>
-
-      <div class="status-escrow__amount-row">
-        <span class="status-escrow__amount-label">Amount held</span>
-        <span class="status-escrow__amount">{{ contract.escrow.amount }}</span>
-      </div>
-
-      <!-- Escrow mini-timeline -->
-      <div class="status-escrow__steps">
-        <div
-          v-for="(es, i) in escrowSteps"
-          :key="es.label"
-          class="escrow-step"
-          :class="{
-            'escrow-step--done': es.done,
-            'escrow-step--active': es.active,
-          }"
-        >
-          <div class="escrow-step__dot">
-            <LucideCheck v-if="es.done" :size="10" />
+      <!-- Escrow tracker (only when escrow exists) -->
+      <section v-if="contract.escrow" class="status-escrow">
+        <div class="status-escrow__header">
+          <div class="status-escrow__icon">
+            <LucideLock :size="18" />
           </div>
-          <span class="escrow-step__label">{{ es.label }}</span>
+          <div>
+            <h3 class="status-escrow__title">Escrow</h3>
+            <p class="status-escrow__subtitle">
+              {{ contract.escrow.condition }}
+            </p>
+          </div>
           <div
-            v-if="i < escrowSteps.length - 1"
-            class="escrow-step__connector"
-            :class="{ 'escrow-step__connector--done': es.done }"
-          />
+            class="status-escrow__badge"
+            :class="`status-escrow__badge--${contract.escrow.status}`"
+          >
+            {{ escrowStatusLabel }}
+          </div>
         </div>
-      </div>
-    </section>
 
-    <!-- Quick actions -->
-    <section class="status-actions">
-      <button class="status-action" @click="handleViewContract">
-        <LucideFileText :size="18" />
-        <span>View contract</span>
-      </button>
-      <button class="status-action" @click="handleDownload">
-        <LucideDownload :size="18" />
-        <span>Download PDF</span>
-      </button>
-      <button class="status-action" @click="handleShare">
-        <LucideShare2 :size="18" />
-        <span>Share link</span>
-      </button>
-    </section>
+        <div class="status-escrow__amount-row">
+          <span class="status-escrow__amount-label">Amount held</span>
+          <span class="status-escrow__amount">{{
+            contract.escrow.amount
+          }}</span>
+        </div>
+
+        <!-- Escrow mini-timeline -->
+        <div class="status-escrow__steps">
+          <div
+            v-for="(es, i) in escrowSteps"
+            :key="es.label"
+            class="escrow-step"
+            :class="{
+              'escrow-step--done': es.done,
+              'escrow-step--active': es.active,
+            }"
+          >
+            <div class="escrow-step__dot">
+              <LucideCheck v-if="es.done" :size="10" />
+            </div>
+            <span class="escrow-step__label">{{ es.label }}</span>
+            <div
+              v-if="i < escrowSteps.length - 1"
+              class="escrow-step__connector"
+              :class="{ 'escrow-step__connector--done': es.done }"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick actions -->
+      <section class="status-actions">
+        <button class="status-action" :disabled="isDraft" @click="handleViewContract">
+          <LucideFileText :size="18" />
+          <span>View contract</span>
+        </button>
+        <button class="status-action" :disabled="isDraft" @click="handleDownload">
+          <LucideDownload :size="18" />
+          <span>Download PDF</span>
+        </button>
+        <button class="status-action" :disabled="isDraft" @click="handleShare">
+          <LucideShare2 :size="18" />
+          <span>Share link</span>
+        </button>
+      </section>
+    </template>
 
     <!-- Actions bottom slider -->
     <BottomSlider v-model="showActions" title="Actions">
       <div class="actions-menu">
-        <button class="actions-menu__item" @click="handleResend">
+        <button class="actions-menu__item" :disabled="isDraft" @click="handleResend">
           <LucideSend :size="18" />
           <span>Resend invite</span>
         </button>
-        <button class="actions-menu__item" @click="handleViewContract">
+        <button class="actions-menu__item" :disabled="isDraft" @click="handleViewContract">
           <LucideFileText :size="18" />
           <span>View full contract</span>
         </button>
-        <button class="actions-menu__item" @click="handleDownload">
+        <button class="actions-menu__item" :disabled="isDraft" @click="handleDownload">
           <LucideDownload :size="18" />
           <span>Download PDF</span>
         </button>
@@ -230,6 +249,7 @@
 
 <script setup lang="ts">
 import type { Component } from "vue";
+import type { Signature } from "~/utils/types/api";
 import {
   LucideFileText,
   LucideDownload,
@@ -252,6 +272,107 @@ useSeoMeta({
   description:
     "Track the progress of your Pact AI contract — signatures, escrow funding, and completion status.",
 });
+
+// ── API data ───────────────────────────────────────────────────────────────
+
+const contractId = computed(() => route.params.id as string);
+const { data: contractData, isLoading } = useContractQuery(contractId);
+const { getSignaturesByContract, sendSigningLinks } = useSignContract();
+const { data: _milestones } = useMilestonesQuery(contractId);
+
+const hasPdf = computed(() => !!contractData.value?.contract_pdf_url);
+const { data: pdfData } = useContractPdfQuery(
+  computed(() => (hasPdf.value ? contractId.value : null)),
+);
+
+const signatures = ref<Signature[]>([]);
+
+watch(
+  contractData,
+  async (c) => {
+    if (c) signatures.value = await getSignaturesByContract(c.id);
+  },
+  { immediate: true },
+);
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const isPlaceholder = (v?: string) =>
+  !v || /^\s*<?\s*unknown\s*>?\s*$/i.test(v);
+
+const formatTimestamp = (iso?: string) => {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-NG", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+// ── Derived contract fields ────────────────────────────────────────────────
+
+const contract = computed(() => {
+  const c = contractData.value;
+  if (!c) return null;
+
+  const spName = isPlaceholder(c.service_provider?.name)
+    ? undefined
+    : c.service_provider!.name;
+  const clientName = isPlaceholder(c.client?.name) ? undefined : c.client!.name;
+
+  const hasEscrow = c.escrow_proposed || c.escrow_active;
+  const escrowFunded = c.escrow_active || c.interswitch_status === "completed";
+  const escrowDisputed = !!c.disputed_by;
+
+  let escrowStatus: "unfunded" | "funded" | "released" | "disputed" =
+    "unfunded";
+  if (escrowDisputed) escrowStatus = "disputed";
+  else if (c.status === "completed" && hasEscrow) escrowStatus = "released";
+  else if (escrowFunded) escrowStatus = "funded";
+
+  return {
+    id: c.id,
+    title: c.title || "Untitled Contract",
+    reference: c.reference,
+    createdAt: formatDate(c.created_at),
+    sender: spName || "Service provider",
+    recipient: clientName || "Client",
+    status: c.status,
+    hasEscrow,
+    escrow: hasEscrow
+      ? {
+          amount: formatCurrency(c.payment?.amount, c.payment?.currency),
+          condition:
+            c.payment?.schedule === "milestone"
+              ? "Released per milestone"
+              : "Released on delivery",
+          status: escrowStatus,
+        }
+      : null,
+    paymentUrl: c.interswitch_payment_url,
+  };
+});
+
+// ── Signature helpers ──────────────────────────────────────────────────────
+
+const isDraft = computed(() => contract.value?.status === "draft");
+
+const spSig = computed(() =>
+  signatures.value.find((s) => s.role === "service_provider"),
+);
+const clientSig = computed(() =>
+  signatures.value.find((s) => s.role === "client"),
+);
+const allSigned = computed(
+  () =>
+    signatures.value.length >= 2 &&
+    signatures.value.every((s) => s.status === "signed"),
+);
+const sigsSent = computed(() => signatures.value.length > 0);
+
+// ── Timeline steps ─────────────────────────────────────────────────────────
 
 type StepStatus = "done" | "active" | "pending";
 type EscrowStatus = "unfunded" | "funded" | "released" | "disputed";
@@ -278,82 +399,76 @@ interface Step {
   signers?: Signer[];
 }
 
-// TODO: fetch from API using route.params.id
-const contract = reactive({
-  title: "Logo Design for TechWave",
-  createdAt: "Mar 20, 2026",
-  sender: "Adewale Johnson",
-  recipient: "Chioma Nwosu",
-  currentStep: 3,
-  escrow: {
-    amount: "₦350,000",
-    condition: "Released on delivery",
-    status: "funded" as EscrowStatus,
-  } as { amount: string; condition: string; status: EscrowStatus } | null,
-});
-
 const steps = computed<Step[]>(() => {
+  const c = contract.value;
+  if (!c) return [];
+
   const base: Step[] = [
     {
       id: "created",
       title: "Contract created",
       description: "AI generated the contract from your conversation.",
       status: "done",
-      timestamp: "Mar 20, 2:30 PM",
+      timestamp: c.createdAt,
     },
     {
       id: "sent",
       title: "Invite sent",
-      description: `Signing invitation sent to ${contract.recipient}.`,
-      status: "done",
-      timestamp: "Mar 20, 2:31 PM",
+      description: sigsSent.value
+        ? `Signing invitation sent to ${c.recipient}.`
+        : c.status === "draft"
+          ? "Contract must be finalized before sending invites."
+          : "Send signing invitations to proceed.",
+      status: sigsSent.value ? "done" : c.status === "draft" ? "pending" : "active",
+      action:
+        !sigsSent.value && c.status !== "draft"
+          ? {
+              label: "Send invites",
+              icon: LucideSend,
+              handler: handleResend,
+            }
+          : undefined,
     },
     {
       id: "signatures",
       title: "Signatures",
       description: "Both parties must sign to activate the contract.",
-      status:
-        contract.currentStep >= 3
-          ? "done"
-          : contract.currentStep === 2
-            ? "active"
-            : "pending",
-      timestamp: contract.currentStep >= 3 ? "Mar 21, 10:15 AM" : undefined,
-      signers: [
-        {
-          name: contract.sender,
-          status: contract.currentStep >= 2 ? "signed" : "pending",
-        },
-        {
-          name: contract.recipient,
-          status: contract.currentStep >= 3 ? "signed" : "pending",
-        },
-      ],
+      status: allSigned.value ? "done" : sigsSent.value ? "active" : "pending",
+      timestamp: allSigned.value
+        ? formatTimestamp(clientSig.value?.signed_at || spSig.value?.signed_at)
+        : undefined,
+      signers: sigsSent.value
+        ? [
+            {
+              name: spSig.value?.signer_name || c.sender,
+              status: spSig.value?.status === "signed" ? "signed" : "pending",
+            },
+            {
+              name: clientSig.value?.signer_name || c.recipient,
+              status:
+                clientSig.value?.status === "signed" ? "signed" : "pending",
+            },
+          ]
+        : undefined,
     },
   ];
 
-  if (contract.escrow) {
+  if (c.escrow) {
+    const funded = c.escrow.status !== "unfunded";
     base.push(
       {
         id: "escrow-funded",
         title: "Escrow funded",
-        description: `${contract.escrow.amount} held securely until conditions are met.`,
-        status:
-          contract.escrow.status === "unfunded"
-            ? contract.currentStep >= 3
-              ? "active"
-              : "pending"
-            : "done",
-        timestamp:
-          contract.escrow.status !== "unfunded"
-            ? "Mar 21, 10:20 AM"
-            : undefined,
+        description: funded
+          ? `${c.escrow.amount} held securely until conditions are met.`
+          : `${c.escrow.amount || "Payment"} to be held in escrow.`,
+        status: funded ? "done" : allSigned.value ? "active" : "pending",
         action:
-          contract.escrow.status === "unfunded" && contract.currentStep >= 3
+          !funded && allSigned.value && c.paymentUrl
             ? {
                 label: "Fund escrow",
                 icon: LucideWallet,
-                handler: () => addToast("info", "Redirecting to payment..."),
+                handler: () => navigateTo(c.paymentUrl!, { external: true }),
               }
             : undefined,
       },
@@ -362,13 +477,9 @@ const steps = computed<Step[]>(() => {
         title: "Work delivered",
         description: "Deliverables submitted and awaiting review.",
         status:
-          contract.currentStep >= 5
-            ? "done"
-            : contract.currentStep === 4
-              ? "active"
-              : "pending",
+          c.status === "completed" ? "done" : funded ? "active" : "pending",
         action:
-          contract.currentStep === 4
+          funded && c.status !== "completed"
             ? {
                 label: "Confirm delivery",
                 icon: LucideFileCheck,
@@ -381,8 +492,7 @@ const steps = computed<Step[]>(() => {
         id: "escrow-released",
         title: "Payment released",
         description: "Escrow funds released to the recipient.",
-        status: contract.currentStep >= 6 ? "done" : "pending",
-        timestamp: contract.currentStep >= 6 ? "Mar 28, 3:00 PM" : undefined,
+        status: c.escrow.status === "released" ? "done" : "pending",
       },
     );
   }
@@ -390,11 +500,10 @@ const steps = computed<Step[]>(() => {
   base.push({
     id: "complete",
     title: "Contract complete",
-    description: contract.escrow
+    description: c.escrow
       ? "All obligations fulfilled. Payment released."
       : "Both parties have signed. Contract is legally binding.",
-    status:
-      contract.currentStep >= (contract.escrow ? 7 : 4) ? "done" : "pending",
+    status: c.status === "completed" ? "done" : "pending",
   });
 
   return base;
@@ -404,7 +513,9 @@ const completedSteps = computed(
   () => steps.value.filter((s) => s.status === "done").length,
 );
 const progressPercent = computed(() =>
-  Math.round((completedSteps.value / steps.value.length) * 100),
+  steps.value.length
+    ? Math.round((completedSteps.value / steps.value.length) * 100)
+    : 0,
 );
 
 const overallStatus = computed(() => {
@@ -432,19 +543,19 @@ const overallIcon = computed(() => {
 });
 
 const escrowStatusLabel = computed(() => {
-  if (!contract.escrow) return "";
+  if (!contract.value?.escrow) return "";
   const map: Record<EscrowStatus, string> = {
     unfunded: "Unfunded",
     funded: "Funded",
     released: "Released",
     disputed: "Disputed",
   };
-  return map[contract.escrow.status];
+  return map[contract.value.escrow.status];
 });
 
 const escrowSteps = computed(() => {
-  if (!contract.escrow) return [];
-  const s = contract.escrow.status;
+  if (!contract.value?.escrow) return [];
+  const s = contract.value.escrow.status;
   return [
     { label: "Funded", done: s !== "unfunded", active: s === "unfunded" },
     { label: "Held", done: s === "released", active: s === "funded" },
@@ -452,19 +563,35 @@ const escrowSteps = computed(() => {
   ];
 });
 
+// ── Actions ────────────────────────────────────────────────────────────────
+
 const handleViewContract = () => navigateTo(`/sign/${route.params.id}`);
-const handleDownload = () =>
-  addToast("info", "PDF download will be available shortly.");
+
+const handleDownload = () => {
+  if (pdfData.value?.contract_pdf_url) {
+    navigateTo(pdfData.value.contract_pdf_url, { external: true });
+  } else {
+    addToast("info", "PDF is not available yet.");
+  }
+};
+
 const handleShare = () => {
   navigator.clipboard.writeText(
     `${window.location.origin}/sign/${route.params.id}`,
   );
   addToast("success", "Contract link copied to clipboard.");
 };
-const handleResend = () => {
+
+const handleResend = async () => {
   showActions.value = false;
-  addToast("success", "Signing invite resent.");
+  if (!contractData.value) return;
+  const result = await sendSigningLinks({ contract_id: contractData.value.id });
+  if (result) {
+    addToast("success", "Signing invite sent.");
+    signatures.value = await getSignaturesByContract(contractData.value.id);
+  }
 };
+
 const handleCancel = () => {
   showActions.value = false;
   addToast("warning", "Contract cancellation is not yet available.");
@@ -478,7 +605,43 @@ const handleCancel = () => {
   padding: 0 0 24px;
 }
 
-/* Header */
+/* Loading */
+.status-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 20px;
+}
+
+.status-loading__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-gray-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: status-spin 0.7s linear infinite;
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-loading p {
+  font-size: 14px;
+  color: var(--color-gray-dark);
+  margin: 0;
+}
+
+.status-card__ref {
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-right: 6px;
+}
+
 /* Contract card */
 .status-card {
   margin: 0 16px 16px;
@@ -1014,9 +1177,14 @@ const handleCancel = () => {
   transition: all 0.15s;
 }
 
-.status-action:hover {
+.status-action:hover:not(:disabled) {
   border-color: var(--color-primary);
   background: rgba(45, 1, 2, 0.02);
+}
+
+.status-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 /* Actions menu slider */
@@ -1043,8 +1211,13 @@ const handleCancel = () => {
   transition: background 0.15s;
 }
 
-.actions-menu__item:hover {
+.actions-menu__item:hover:not(:disabled) {
   background: rgba(45, 1, 2, 0.04);
+}
+
+.actions-menu__item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .actions-menu__item--danger {

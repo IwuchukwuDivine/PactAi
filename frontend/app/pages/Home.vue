@@ -4,7 +4,7 @@
     <AppHeader>
       <template #title>
         <p class="home__greeting-text">{{ greeting }},</p>
-        <h2 class="home__greeting-name">User</h2>
+        <h2 class="home__greeting-name">{{ firstName }}</h2>
       </template>
       <template #action>
         <button class="home__notif" aria-label="Notifications">
@@ -34,17 +34,17 @@
     <!-- Stats -->
     <div class="home__stats">
       <div class="home__stat">
-        <span class="home__stat-value">0</span>
+        <span class="home__stat-value">{{ stats.total }}</span>
         <span class="home__stat-label">Contracts</span>
       </div>
       <div class="home__stat-divider" />
       <div class="home__stat">
-        <span class="home__stat-value">0</span>
+        <span class="home__stat-value">{{ stats.pending }}</span>
         <span class="home__stat-label">Pending</span>
       </div>
       <div class="home__stat-divider" />
       <div class="home__stat">
-        <span class="home__stat-value">0</span>
+        <span class="home__stat-value">{{ stats.escrow }}</span>
         <span class="home__stat-label">Escrow</span>
       </div>
     </div>
@@ -78,26 +78,43 @@
     <section class="home__section">
       <div class="home__section-header">
         <h3 class="home__section-title">Recent contracts</h3>
-        <NuxtLink to="/Contracts" class="home__section-link">
+        <NuxtLink v-if="recentContracts.length" to="/Contracts" class="home__section-link">
           View all
         </NuxtLink>
       </div>
 
-      <!-- Empty state -->
-      <div class="home__empty">
-        <div class="home__empty-icon">
-          <LucideFileText :size="32" />
-        </div>
-        <p class="home__empty-title">No contracts yet</p>
-        <p class="home__empty-desc">
-          Your generated contracts will appear here
-        </p>
+      <div v-if="recentContracts.length" class="home__recent-list">
+        <button
+          v-for="contract in recentContracts"
+          :key="contract.id"
+          class="home__recent-card"
+          @click="navigateTo(`/contracts/${contract.id}`)"
+        >
+          <span class="home__recent-title">{{ contract.title || "Untitled" }}</span>
+          <span
+            class="home__recent-status"
+            :class="`home__recent-status--${contract.status}`"
+          >
+            {{ statusLabels[contract.status] || contract.status }}
+          </span>
+        </button>
       </div>
+
+      <EmptyState
+        v-else
+        :icon="LucideFileText"
+        title="No contracts yet"
+        description="Your generated contracts will appear here"
+      />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { LucideFileText } from "lucide-vue-next";
+import type { Contract } from "~/utils/types/api";
+import { useContractsQuery } from "~/composables/useRequest";
+
 definePageMeta({ layout: "dashboard" });
 
 useSeoMeta({
@@ -106,12 +123,39 @@ useSeoMeta({
     "Your Pact AI dashboard — create contracts, track signatures, and manage escrow payments.",
 });
 
+const { user } = useAuth();
+const { data: contractsData } = useContractsQuery();
+const contracts = computed<Contract[]>(() => contractsData.value ?? []);
+
+const firstName = computed(() => {
+  const meta = user.value?.user_metadata;
+  return meta?.first_name || "Guest";
+});
+
 const greeting = computed(() => {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
 });
+
+const stats = computed(() => ({
+  total: contracts.value.length,
+  pending: contracts.value.filter((c) => c.status === "pending_signatures" || c.status === "negotiating").length,
+  escrow: contracts.value.filter((c) => c.escrow_proposed).length,
+}));
+
+const recentContracts = computed(() => contracts.value.slice(0, 3));
+
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  pending_signatures: "Pending",
+  negotiating: "Under review",
+  signed: "Signed",
+  completed: "Completed",
+  disputed: "Disputed",
+  cancelled: "Cancelled",
+};
 </script>
 
 <style scoped>
@@ -325,41 +369,74 @@ const greeting = computed(() => {
   white-space: nowrap;
 }
 
-/* Empty state */
-.home__empty {
+/* Recent contracts list */
+.home__recent-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 40px 20px;
-  border-radius: 16px;
-  border: 1.5px dashed var(--color-gray-light);
+  gap: 8px;
 }
 
-.home__empty-icon {
+.home__recent-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: rgba(45, 1, 2, 0.04);
-  color: var(--color-gray-medium);
-  margin-bottom: 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(45, 1, 2, 0.07);
+  background: var(--color-white);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  text-align: left;
 }
 
-.home__empty-title {
-  font-size: 15px;
+.home__recent-card:hover {
+  border-color: var(--color-primary);
+  background: rgba(45, 1, 2, 0.01);
+}
+
+.home__recent-title {
+  font-size: 14px;
   font-weight: 600;
-  color: var(--color-black);
-  margin: 0 0 4px;
+  color: var(--color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
-.home__empty-desc {
-  font-size: 13px;
-  font-weight: 400;
+.home__recent-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.home__recent-status--draft {
+  background: rgba(45, 1, 2, 0.06);
   color: var(--color-gray-dark);
-  margin: 0;
+}
+
+.home__recent-status--signed,
+.home__recent-status--completed {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.home__recent-status--pending_signatures,
+.home__recent-status--negotiating {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.home__recent-status--disputed,
+.home__recent-status--cancelled {
+  background: rgba(170, 1, 1, 0.06);
+  color: var(--color-accent);
 }
 
 @media (min-width: 768px) {

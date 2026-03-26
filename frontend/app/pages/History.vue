@@ -16,11 +16,16 @@
         type="text"
         class="history__search-input"
         placeholder="Search chats..."
-      >
+      />
+    </div>
+
+    <!-- Loading -->
+    <div v-if="isLoading && !filteredChats.length" class="history__loading">
+      <p>Loading chats...</p>
     </div>
 
     <!-- Chat list -->
-    <div v-if="filteredChats.length" class="history__list">
+    <div v-else-if="filteredChats.length" class="history__list">
       <template v-for="(group, gi) in groupedChats" :key="gi">
         <p class="history__date-label">{{ group.label }}</p>
         <button
@@ -30,12 +35,14 @@
           @click="navigateTo(`/Chat?id=${chat.id}`)"
         >
           <div class="history__item-avatar">
-            <img src="/logo.png" alt="" class="history__item-avatar-img">
+            <img src="/logo.png" alt="" class="history__item-avatar-img" />
           </div>
           <div class="history__item-body">
             <div class="history__item-top">
               <span class="history__item-title">{{ chat.title }}</span>
-              <span class="history__item-time">{{ chat.time }}</span>
+              <span class="history__item-time">{{
+                formatChatTime(chat.time)
+              }}</span>
             </div>
             <p class="history__item-preview">{{ chat.preview }}</p>
             <span
@@ -43,7 +50,7 @@
               class="history__item-status"
               :class="`history__item-status--${chat.status}`"
             >
-              {{ statusLabels[chat.status] }}
+              {{ statusLabels[chat.status] || chat.status }}
             </span>
           </div>
         </button>
@@ -51,28 +58,25 @@
     </div>
 
     <!-- Empty state -->
-    <div v-else class="history__empty">
-      <div class="history__empty-icon">
-        <LucideMessagesSquare :size="36" />
-      </div>
-      <p class="history__empty-title">
-        {{ query ? "No results" : "No chats yet" }}
-      </p>
-      <p class="history__empty-desc">
-        {{
-          query
-            ? "Try a different search term."
-            : "Start a conversation with Pact AI to create your first contract."
-        }}
-      </p>
-      <AppButton
-        v-if="!query"
-        title="Start chatting"
-        variant="primary"
-        :prepend-icon="LucideMessageSquarePlus"
-        @click="navigateTo('/Chat')"
-      />
-    </div>
+    <EmptyState
+      v-else
+      :icon="query ? LucideSearch : LucideMessagesSquare"
+      :title="query ? 'No results' : 'No chats yet'"
+      :description="
+        query
+          ? 'Try a different search term.'
+          : 'Start a conversation with Pact AI to create your first contract.'
+      "
+    >
+      <template v-if="!query" #action>
+        <AppButton
+          title="Start chatting"
+          variant="primary"
+          :prepend-icon="LucideMessageSquarePlus"
+          @click="navigateTo('/Chat')"
+        />
+      </template>
+    </EmptyState>
   </div>
 </template>
 
@@ -82,86 +86,78 @@ import {
   LucideSearch,
   LucideMessagesSquare,
 } from "lucide-vue-next";
+import type { ChatHistoryItem } from "~/utils/types/api";
+import { useChatHistoryQuery } from "~/composables/useRequest";
 
 defineOptions({ name: "ChatHistoryPage" });
 definePageMeta({ layout: "dashboard" });
 
 useSeoMeta({
   title: "Chat History",
-  description: "View your past conversations with Pact AI and revisit generated contracts.",
+  description:
+    "View your past conversations with Pact AI and revisit generated contracts.",
 });
-
-interface ChatEntry {
-  id: string;
-  title: string;
-  preview: string;
-  time: string;
-  date: string;
-  status?: "draft" | "signed" | "pending" | "expired";
-}
 
 const statusLabels: Record<string, string> = {
   draft: "Draft",
   signed: "Signed",
+  pending_signatures: "Pending signature",
   pending: "Pending signature",
   expired: "Expired",
+  completed: "Completed",
+  negotiating: "Under review",
 };
 
 const query = ref("");
+const { data: historyData, isLoading } = useChatHistoryQuery();
 
-// TODO: replace with API data
-const chats = ref<ChatEntry[]>([
-  {
-    id: "1",
-    title: "Logo Design Agreement",
-    preview: "I need a contract for a freelance logo design project with TechWave...",
-    time: "2:47 PM",
-    date: "Today",
-    status: "signed",
-  },
-  {
-    id: "2",
-    title: "Room Rental Agreement",
-    preview: "My friend and I agreed that he'd rent my spare room for ₦150,000/month...",
-    time: "11:30 AM",
-    date: "Today",
-    status: "pending",
-  },
-  {
-    id: "3",
-    title: "Freelance Dev Contract",
-    preview: "I want to create a contract for a mobile app development project...",
-    time: "Yesterday",
-    date: "Yesterday",
-    status: "draft",
-  },
-  {
-    id: "4",
-    title: "Catering Service Agreement",
-    preview: "We agreed that she'd cater for my event on March 30th for ₦500,000...",
-    time: "Mar 19",
-    date: "Last week",
-  },
-]);
+const chats = computed<ChatHistoryItem[]>(() => historyData.value?.chats ?? []);
 
 const filteredChats = computed(() => {
   if (!query.value.trim()) return chats.value;
   const q = query.value.toLowerCase();
   return chats.value.filter(
-    (c) => c.title.toLowerCase().includes(q) || c.preview.toLowerCase().includes(q),
+    (c) =>
+      c.title.toLowerCase().includes(q) || c.preview.toLowerCase().includes(q),
   );
 });
 
+const formatChatTime = (isoStr: string) => {
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return isoStr;
+  return d.toLocaleTimeString("en-NG", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+const getDateLabel = (dateStr: string) => {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.floor((today.getTime() - target.getTime()) / 86400000);
+
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return "Last week";
+  return d.toLocaleDateString("en-NG", { month: "short", day: "numeric" });
+};
+
 const groupedChats = computed(() => {
-  const groups: { label: string; chats: ChatEntry[] }[] = [];
+  const groups: { label: string; chats: ChatHistoryItem[] }[] = [];
   const seen = new Set<string>();
 
   for (const chat of filteredChats.value) {
-    if (!seen.has(chat.date)) {
-      seen.add(chat.date);
-      groups.push({ label: chat.date, chats: [] });
+    const label = getDateLabel(chat.date || chat.time);
+    if (!seen.has(label)) {
+      seen.add(label);
+      groups.push({ label, chats: [] });
     }
-    groups.find((g) => g.label === chat.date)?.chats.push(chat);
+    groups.find((g) => g.label === label)?.chats.push(chat);
   }
 
   return groups;
@@ -199,7 +195,9 @@ const groupedChats = computed(() => {
   font-size: 15px;
   color: var(--color-primary);
   background: rgba(45, 1, 2, 0.02);
-  transition: border-color 0.2s, background 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
 }
 
 .history__search-input::placeholder {
@@ -209,6 +207,15 @@ const groupedChats = computed(() => {
 .history__search-input:focus {
   border-color: var(--color-primary);
   background: var(--color-white);
+}
+
+/* Loading */
+.history__loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+  color: var(--color-gray-dark);
+  font-size: 14px;
 }
 
 /* List */
@@ -324,65 +331,29 @@ const groupedChats = computed(() => {
   color: var(--color-gray-dark);
 }
 
-.history__item-status--signed {
+.history__item-status--signed,
+.history__item-status--completed {
   background: #f0fdf4;
   color: #16a34a;
 }
 
-.history__item-status--pending {
+.history__item-status--pending,
+.history__item-status--pending_signatures,
+.history__item-status--negotiating {
   background: #fffbeb;
   color: #d97706;
 }
 
-.history__item-status--expired {
+.history__item-status--expired,
+.history__item-status--cancelled,
+.history__item-status--disputed {
   background: rgba(170, 1, 1, 0.06);
   color: var(--color-accent);
-}
-
-/* Empty state */
-.history__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 64px 24px;
-}
-
-.history__empty-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: rgba(45, 1, 2, 0.04);
-  color: var(--color-gray-medium);
-  margin-bottom: 16px;
-}
-
-.history__empty-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--color-black);
-  margin: 0 0 6px;
-}
-
-.history__empty-desc {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-gray-dark);
-  margin: 0 0 24px;
-  max-width: 280px;
-  line-height: 1.5;
 }
 
 @media (min-width: 768px) {
   .history {
     padding: 28px 24px 0;
-  }
-
-  .history__title {
-    font-size: 28px;
   }
 }
 </style>

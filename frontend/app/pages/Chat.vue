@@ -24,12 +24,25 @@
 
     <!-- Messages area -->
     <div ref="messagesRef" class="chat__messages">
-      <!-- Welcome state -->
-      <div v-if="!messages.length" class="chat__welcome">
+      <!-- Loading history -->
+      <div v-if="isRestoringChat" class="chat__loading">
+        <div class="chat__loading-spinner" />
+        <p class="chat__loading-text">Loading conversation…</p>
+      </div>
+
+      <!-- Welcome state (only when no existing chat) -->
+      <div v-else-if="showWelcome" class="chat__welcome">
         <div class="chat__welcome-icon">
           <img src="/logo.png" alt="Pact AI" class="chat__welcome-logo" />
         </div>
-        <h2 class="chat__welcome-title">How can I help?</h2>
+        <ClientOnly>
+          <h2 class="chat__welcome-title">
+            Hi {{ firstName }}, how can I help?
+          </h2>
+          <template #fallback>
+            <h2 class="chat__welcome-title">How can I help?</h2>
+          </template>
+        </ClientOnly>
         <p class="chat__welcome-desc">
           Describe your agreement, paste a conversation, or upload screenshots
           and I'll draft a contract for you.
@@ -49,7 +62,7 @@
       </div>
 
       <!-- Message list -->
-      <template v-for="(msg, i) in messages" :key="i">
+      <template v-for="(msg, i) in uiMessages" :key="i">
         <ChatBubbleUser
           v-if="msg.role === 'user'"
           :text="msg.text"
@@ -186,7 +199,13 @@ import {
   LucideFileCheck,
 } from "lucide-vue-next";
 import type { ContractCard } from "~/components/Chat/BubbleAi.vue";
-import { compressImage } from "~/utils/compressImage";
+import type { Contract } from "~/utils/types/api";
+import {
+  useSendChatMessage,
+  useChatMessagesQuery,
+  useCreateContract,
+  useContractQuery,
+} from "~/composables/useRequest";
 
 definePageMeta({ layout: false });
 
@@ -196,13 +215,15 @@ useSeoMeta({
     "Chat with Pact AI to create legally binding contracts from conversations, descriptions, or screenshots.",
 });
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 interface PendingImage {
   id: string;
   file: File;
   url: string;
 }
 
-interface ChatMessage {
+interface UiChatMessage {
   role: "user" | "ai";
   text?: string;
   images?: string[];
@@ -211,21 +232,44 @@ interface ChatMessage {
   time?: string;
 }
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
-const MAX_IMAGES = 5;
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+// ── State ──────────────────────────────────────────────────────────────────
 
-const { addToast } = useToast();
+const route = useRoute();
 const router = useRouter();
+const { addToast } = useToast();
+const { uploadImages } = useUploadImage();
+const { user } = useAuth();
 
-const messages = ref<ChatMessage[]>([]);
+const firstName = computed(
+  () => user.value?.user_metadata?.first_name || "there",
+);
+
+const uiMessages = ref<UiChatMessage[]>([]);
 const inputText = ref("");
 const pendingImages = ref<PendingImage[]>([]);
 const messagesRef = ref<HTMLElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const showOptions = ref(false);
-const isProcessing = ref(false);
+const isSending = ref(false);
+const contractId = ref<string | null>((route.query.id as string) ?? null);
+
+// ── API hooks ──────────────────────────────────────────────────────────────
+
+const sendChatMutation = useSendChatMessage();
+const createContractMutation = useCreateContract();
+const { data: messagesData, isLoading: isLoadingHistory } =
+  useChatMessagesQuery(contractId);
+const { refetch: refetchContract } = useContractQuery(contractId);
+
+const isRestoringChat = computed(
+  () => !!contractId.value && (isLoadingHistory.value || !messagesData.value) && !uiMessages.value.length,
+);
+const showWelcome = computed(
+  () => !contractId.value && !uiMessages.value.length,
+);
+
+// ── Suggestions ────────────────────────────────────────────────────────────
 
 const suggestions = [
   {
@@ -245,20 +289,19 @@ const suggestions = [
   },
 ];
 
+// ── Computed ───────────────────────────────────────────────────────────────
+
 const canSend = computed(
   () =>
-    !isProcessing.value &&
+    !isSending.value &&
     (inputText.value.trim().length > 0 || pendingImages.value.length > 0),
 );
 
-const contractId = computed(() => {
-  const contractMsg = [...messages.value].reverse().find((m) => m.contract);
-  return contractMsg?.contract?.id ?? "e99e9e0";
-});
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-const formatTime = () => {
-  const now = new Date();
-  return now.toLocaleTimeString("en-NG", {
+const formatTime = (dateStr?: string) => {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  return d.toLocaleTimeString("en-NG", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -280,6 +323,64 @@ const autoResize = () => {
   el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
 };
 
+const inferInputType = (
+  text: string,
+  hasImages: boolean,
+): "paste" | "screenshot" | "manual" => {
+  if (hasImages) return "screenshot";
+  if (text.length > 300) return "paste";
+  return "manual";
+};
+
+// ── Populate UI messages from loaded history ──────────────────────────────
+
+watch(
+  messagesData,
+  async (res) => {
+    if (!res?.messages?.length) return;
+    if (uiMessages.value.length) return;
+
+    const mapped: UiChatMessage[] = [];
+
+    for (const m of res.messages) {
+      mapped.push({
+        role: m.role === "ai" ? "ai" : "user",
+        text: m.text,
+        images: m.images?.length ? m.images : undefined,
+        time: formatTime(m.created_at),
+      });
+
+      if (m.metadata?.ready && contractId.value) {
+        const { data } = await refetchContract();
+        if (data) {
+          mapped.push({
+            role: "ai",
+            contract: buildContractCard(data),
+            time: formatTime(m.created_at),
+          });
+        }
+      }
+    }
+
+    uiMessages.value = mapped;
+    scrollToBottom();
+  },
+  { immediate: true },
+);
+
+const buildContractCard = (contract: Contract): ContractCard => {
+  const parties = [contract.service_provider?.name, contract.client?.name]
+    .filter(Boolean)
+    .join(" ↔ ");
+  return {
+    id: contract.id,
+    title: contract.title || "Untitled Contract",
+    parties: parties || undefined,
+  };
+};
+
+// ── Core send logic ────────────────────────────────────────────────────────
+
 const sendSuggestion = (text: string) => {
   inputText.value = text;
   handleSend();
@@ -289,98 +390,98 @@ const handleSend = async () => {
   if (!canSend.value) return;
 
   const text = inputText.value.trim();
-  const images = pendingImages.value.map((img) => img.url);
+  const hasImages = pendingImages.value.length > 0;
+  const localImageUrls = pendingImages.value.map((img) => img.url);
+  const filesToUpload = pendingImages.value.map((img) => img.file);
 
-  const userMsg: ChatMessage = {
+  const userMsg: UiChatMessage = {
     role: "user",
     time: formatTime(),
   };
   if (text) userMsg.text = text;
-  if (images.length) userMsg.images = images;
+  if (localImageUrls.length) userMsg.images = localImageUrls;
 
-  messages.value.push(userMsg);
+  uiMessages.value.push(userMsg);
   inputText.value = "";
   pendingImages.value = [];
-
-  if (textareaRef.value) {
-    textareaRef.value.style.height = "auto";
-  }
-
+  if (textareaRef.value) textareaRef.value.style.height = "auto";
   scrollToBottom();
 
-  isProcessing.value = true;
-  messages.value.push({ role: "ai", typing: true });
+  isSending.value = true;
+  uiMessages.value.push({ role: "ai", typing: true });
   scrollToBottom();
 
-  // TODO: replace with actual AI API call
-  await new Promise((r) => setTimeout(r, 2000));
+  try {
+    let imageUrls: string[] = [];
+    if (filesToUpload.length) {
+      imageUrls = await uploadImages(filesToUpload);
+    }
 
-  const typingIdx = messages.value.findIndex((m) => m.typing);
-  if (typingIdx !== -1) messages.value.splice(typingIdx, 1);
+    if (!contractId.value) {
+      const inputType = inferInputType(text, hasImages);
+      const contract = await createContractMutation.mutateAsync({
+        title: text.slice(0, 60) || "New Contract",
+        raw_input: text || undefined,
+        input_type: inputType,
+        screenshot_url: imageUrls[0],
+      });
+      contractId.value = contract.id;
+      router.replace({ query: { id: contract.id } });
+    }
 
-  const isContractRequest =
-    text.toLowerCase().includes("contract") ||
-    text.toLowerCase().includes("agreement") ||
-    images.length > 0;
-
-  if (
-    isContractRequest &&
-    messages.value.filter((m) => m.role === "user").length >= 2
-  ) {
-    messages.value.push({
-      role: "ai",
-      text: "I've reviewed the details and drafted your contract. Here it is:",
-      time: formatTime(),
+    const inputType = inferInputType(text, hasImages);
+    const response = await sendChatMutation.mutateAsync({
+      contract_id: contractId.value,
+      content: text || undefined,
+      image_url: imageUrls[0],
+      input_type: inputType,
     });
+
+    removeTypingBubble();
+
+    const aiMsg = response.messages?.[0];
+    if (aiMsg) {
+      uiMessages.value.push({
+        role: "ai",
+        text: aiMsg.content,
+        time: formatTime(aiMsg.created_at),
+      });
+    }
+
+    if (response.ready && contractId.value) {
+      const { data: fresh } = await refetchContract();
+      if (fresh) {
+        uiMessages.value.push({
+          role: "ai",
+          contract: buildContractCard(fresh),
+          time: formatTime(),
+        });
+      }
+    }
+  } catch {
+    removeTypingBubble();
+    addToast("error", "Failed to send message. Please try again.");
+  } finally {
+    isSending.value = false;
     scrollToBottom();
-
-    await new Promise((r) => setTimeout(r, 600));
-
-    messages.value.push({
-      role: "ai",
-      contract: {
-        id: "demo-contract-1",
-        title: "Freelance Logo Design Agreement",
-        parties: "Adewale Johnson ↔ Chioma Nwosu",
-      },
-      time: formatTime(),
-    });
-  } else {
-    messages.value.push({
-      role: "ai",
-      text: getAiResponse(text),
-      time: formatTime(),
-    });
   }
-
-  isProcessing.value = false;
-  scrollToBottom();
 };
 
-const getAiResponse = (userText: string): string => {
-  if (userText.toLowerCase().includes("paste")) {
-    return "Go ahead and paste the conversation. I'll identify the parties, terms, and obligations to draft a proper contract.";
-  }
-  if (
-    userText.toLowerCase().includes("describe") ||
-    userText.toLowerCase().includes("agreement")
-  ) {
-    return "Tell me the details:\n\n• Who are the parties involved?\n• What's being agreed upon?\n• Any amounts, deadlines, or conditions?\n\nI'll structure it into a binding contract.";
-  }
-  if (
-    userText.toLowerCase().includes("screenshot") ||
-    userText.toLowerCase().includes("upload")
-  ) {
-    return "Upload your screenshots using the image button below. I'll extract the conversation and turn it into a contract.";
-  }
-  return "I understand. Could you share more details about the agreement? For example:\n\n• The parties involved\n• What's being exchanged or promised\n• Any timelines or payment amounts\n\nThe more context you provide, the better the contract.";
+const removeTypingBubble = () => {
+  const idx = uiMessages.value.findIndex((m) => m.typing);
+  if (idx !== -1) uiMessages.value.splice(idx, 1);
 };
 
 const viewContract = (id: string) => {
   router.push(`/contracts/${id}`);
 };
 
-// File handling (retained from Create.vue)
+// ── File handling ──────────────────────────────────────────────────────────
+
+const MAX_IMAGES = 5;
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
+
 const processFiles = async (files: File[]) => {
   const remaining = MAX_IMAGES - pendingImages.value.length;
   if (remaining <= 0) {
@@ -388,33 +489,27 @@ const processFiles = async (files: File[]) => {
     return;
   }
 
-  const imageFiles = files
-    .filter((f) => {
-      if (!ALLOWED_TYPES.includes(f.type)) {
-        addToast(
-          "error",
-          `"${f.name}" is not supported. Use PNG, JPG, or WebP.`,
-        );
-        return false;
-      }
-      return true;
-    })
-    .slice(0, remaining);
+  const valid = files.filter((f) => {
+    if (!ALLOWED_TYPES.includes(f.type)) {
+      addToast("error", `"${f.name}" is not supported. Use PNG, JPG, or WebP.`);
+      return false;
+    }
+    return true;
+  });
 
-  if (
-    imageFiles.length <
-    files.filter((f) => ALLOWED_TYPES.includes(f.type)).length
-  ) {
+  const batch = valid.slice(0, remaining);
+  if (batch.length < valid.length) {
     addToast(
       "warning",
       `Only ${remaining} more image${remaining === 1 ? "" : "s"} allowed (max ${MAX_IMAGES}).`,
     );
   }
 
-  for (const file of imageFiles) {
+  for (const file of batch) {
     let processed = file;
     if (file.size > MAX_FILE_SIZE) {
       try {
+        const { compressImage } = await import("~/utils/compressImage");
         processed = await compressImage(file, 4);
       } catch {
         addToast(
@@ -448,10 +543,14 @@ const removePendingImage = (index: number) => {
   pendingImages.value.splice(index, 1);
 };
 
+// ── Options actions ────────────────────────────────────────────────────────
+
 const handleNewChat = () => {
-  messages.value = [];
+  uiMessages.value = [];
   pendingImages.value = [];
   inputText.value = "";
+  contractId.value = null;
+  router.replace({ query: {} });
   showOptions.value = false;
 };
 
@@ -562,6 +661,35 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Loading state */
+.chat__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: auto 0;
+  padding: 40px 12px;
+}
+
+.chat__loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border, #e5e7eb);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: chat-spin 0.7s linear infinite;
+}
+
+@keyframes chat-spin {
+  to { transform: rotate(360deg); }
+}
+
+.chat__loading-text {
+  font-size: 14px;
+  color: var(--color-text-secondary, #6b7280);
 }
 
 /* Welcome state */

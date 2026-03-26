@@ -1,7 +1,8 @@
 import { compressImage } from "~/utils/compressImage";
 import log from "~/utils/log";
+import useAuth from "~/composables/useAuth";
 
-const BUCKET = "contract-images";
+const BUCKET = "screenshots";
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -9,6 +10,7 @@ const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 export default () => {
   const { supabase, initializeSupabase } = useSupabaseClient();
   const { addToast } = useToast();
+  const { user } = useAuth();
 
   const validateFiles = (
     files: File[],
@@ -50,10 +52,13 @@ export default () => {
         ),
       );
 
+      const userId = user.value?.id ?? "anonymous";
+
       const urls = await Promise.all(
         compressed.map(async (file) => {
           const ext = file.name.split(".").pop() || "jpg";
-          const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+          const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+          const path = `${userId}/${filename}`;
 
           const { error: uploadError } = await supabase.value!.storage
             .from(BUCKET)

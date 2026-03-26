@@ -48,7 +48,13 @@ export const useSupabaseClient = () => {
       log.info("Auth state changed:", event);
       switch (event) {
         case "SIGNED_IN":
-          if (session?.user) setUser(session.user);
+          if (session?.user) {
+            setUser(session.user);
+            const publicPaths = ["/", "/SignIn", "/SignUp", "/ForgotPassword"];
+            if (publicPaths.includes(route.path)) {
+              goTo("/Home");
+            }
+          }
           break;
         case "TOKEN_REFRESHED":
           if (session?.user) setUser(session.user);
@@ -72,7 +78,7 @@ export const useSupabaseClient = () => {
     password: string,
     type: "login" | "signup",
     metadata?: { first_name?: string; last_name?: string },
-  ) => {
+  ): Promise<"session" | "confirm_email" | null> => {
     try {
       if (!supabase.value) await initializeSupabase();
       if (!supabase.value) throw new Error("Supabase client not initialized");
@@ -82,7 +88,7 @@ export const useSupabaseClient = () => {
           password,
         });
         if (error) throw error;
-        await handleAuth(data);
+        return handleAuth(data);
       } else if (type === "signup") {
         const { data, error } = await supabase.value.auth.signUp({
           email,
@@ -92,7 +98,7 @@ export const useSupabaseClient = () => {
           },
         });
         if (error) throw error;
-        await handleAuth(data);
+        return handleAuth(data);
       } else {
         throw new Error("Invalid type");
       }
@@ -105,18 +111,15 @@ export const useSupabaseClient = () => {
       return null;
     }
   };
-  const handleAuth = async (data: {
+  const handleAuth = (data: {
     user: User | null;
     session: Session | null;
-  }) => {
-    console.log("data", data);
+  }): "session" | "confirm_email" => {
     if (data.user && data.session) {
       setUser(data.user);
-      await nextTick();
-      return;
-    } else if (data.user && !data.session) {
-      return;
+      return "session";
     }
+    return "confirm_email";
   };
   const setUser = (payload: User | null) => {
     if (payload) {

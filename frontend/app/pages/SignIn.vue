@@ -90,7 +90,10 @@ const handleSubmit = async () => {
   if (!isFormValid.value) return;
   isSubmitting.value = true;
   try {
-    await authenticateUser(form.email, form.password, "login");
+    const result = await authenticateUser(form.email, form.password, "login");
+    if (result === "session") {
+      navigateTo("/Home");
+    }
   } finally {
     isSubmitting.value = false;
   }

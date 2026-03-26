@@ -9,12 +9,15 @@
 <script setup lang="ts">
 const SPLASH_KEY = "pact_splash_shown";
 
-const showSplash = ref(true);
+const showSplash = ref(false);
+const { initializeSupabase } = useSupabaseClient();
 
-onMounted(() => {
+onMounted(async () => {
   if (!sessionStorage.getItem(SPLASH_KEY)) {
     showSplash.value = true;
   }
+
+  await initializeSupabase();
 });
 
 const dismissSplash = () => {

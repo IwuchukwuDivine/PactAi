@@ -46,13 +46,24 @@ export interface Ambiguity {
 export interface Contract {
   id: string;
   owner_id: string;
+  reference?: string;
   title: string;
   raw_input?: string;
   input_type: "paste" | "screenshot" | "manual";
   screenshot_url?: string;
   escrow_proposed: boolean;
   escrow_proposed_by?: string;
+  escrow_active?: boolean;
+  interswitch_ref?: string;
+  interswitch_status?: string;
+  interswitch_payment_url?: string;
+  interswitch_error?: string;
+  disputed_by?: string;
+  disputed_at?: string;
+  dispute_reason?: string;
   status: string;
+  contract_html?: string;
+  contract_pdf_url?: string;
   extracted_terms?: ExtractedTerms;
   service_provider?: Party;
   client?: Party;
@@ -98,6 +109,44 @@ export interface ExtractTermsResponse {
   extracted_terms: ExtractedTerms;
 }
 
+// ── Chat ─────────────────────────────────────────────────────────────────────
+
+export interface ChatPayload {
+  contract_id: string;
+  content?: string;
+  image_url?: string;
+  input_type: "paste" | "screenshot" | "manual";
+}
+
+export interface ChatResponseMessage {
+  role: "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface ChatResponse {
+  messages: ChatResponseMessage[];
+  ready: boolean;
+}
+
+export interface ChatHistoryItem {
+  id: string;
+  title: string;
+  preview: string;
+  time: string;
+  date: string;
+  status: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "ai";
+  text: string;
+  images: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 // ── Signing ──────────────────────────────────────────────────────────────────
 
 export interface SendSigningLinksPayload {
@@ -113,7 +162,11 @@ export interface ClientSigningInfo {
 export interface SendSigningLinksResponse {
   success: boolean;
   client: ClientSigningInfo;
-  service_provider: { note: string };
+}
+
+export interface DeclineSignaturePayload {
+  reason: string;
+  signing_token?: string;
 }
 
 // ── Sign Contract (Supabase Edge Function — no auth required) ────────────────
@@ -128,8 +181,23 @@ export interface SignContractPayload {
 
 export interface SignContractResponse {
   success: boolean;
-  message?: string;
+  party_role?: string;
+  all_signed?: boolean;
   escrow_payment_url?: string;
+}
+
+export interface Signature {
+  id: string;
+  contract_id: string;
+  signer_name?: string;
+  signer_email?: string;
+  role: "service_provider" | "client";
+  status: "pending" | "signed" | "rejected";
+  signing_token?: string;
+  signed_at?: string;
+  rejected_at?: string;
+  rejection_note?: string;
+  created_at: string;
 }
 
 export interface SignatureWithContract {
@@ -159,4 +227,18 @@ export interface CreateMilestonePayload {
   amount?: number;
   trigger?: string;
   position: number;
+}
+
+export interface MilestoneActionPayload {
+  action: "submit" | "confirm" | "release";
+  milestone_id: string;
+  party_role: "service_provider" | "client";
+  signing_token: string;
+  condition_id?: string;
+}
+
+// ── PDF ──────────────────────────────────────────────────────────────────────
+
+export interface ContractPdfResponse {
+  contract_pdf_url: string;
 }
