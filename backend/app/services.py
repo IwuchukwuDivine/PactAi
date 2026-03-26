@@ -117,6 +117,7 @@ def create_contract(owner_id: str, data: dict) -> dict:
             "raw_input": data.get("raw_input"),
             "input_type": data.get("input_type", "paste"),
             "screenshot_url": data.get("screenshot_url"),
+            "screenshot_urls": data.get("screenshot_urls", []),
             "escrow_proposed": data.get("escrow_proposed", False),
             "escrow_proposed_by": data.get("escrow_proposed_by"),
             "status": "draft",
@@ -125,6 +126,8 @@ def create_contract(owner_id: str, data: dict) -> dict:
     )
     return response.data[0]
 
+# Note: If you want contract-level multiple screenshots, run this migration in Supabase:
+# ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS screenshot_urls jsonb DEFAULT '[]'::jsonb;
 
 def get_contract(contract_id: str) -> dict | None:
     response = (
@@ -339,11 +342,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
     # Build incoming user content and images list
     user_text = request.content or ""
     images = []
-    if request.image_url:
+    # Support both backward-compatible single image_url and new image_urls array
+    if getattr(request, "image_urls", None):
+        images = request.image_urls or []
+    elif getattr(request, "image_url", None):
         images = [request.image_url]
-        # provide a short content marker if no text
-        if not user_text:
-            user_text = "[screenshot]"
+
+    # Validate number of images
+    if len(images) > 5:
+        raise Exception("A maximum of 5 images is allowed per message")
+
+    # provide a short content marker if no text and there are images
+    if not user_text and images:
+        user_text = "[screenshot]"
 
     # Fetch existing message history for this contract
     resp = (
@@ -472,10 +483,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
     if ready:
         contract = get_contract(contract_id)
         if contract:
+            # Pass through multiple screenshot URLs if available on contract row
             ext_req = ExtractTermsRequest(
                 contract_id=contract_id,
                 text=contract.get("raw_input"),
                 image_url=contract.get("screenshot_url"),
+                image_urls=contract.get("screenshot_urls"),
                 input_type=contract.get("input_type", "paste"),
             )
             try:

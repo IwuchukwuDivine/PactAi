@@ -51,7 +51,8 @@ class Ambiguity(BaseModel):
 class ExtractTermsRequest(BaseModel):
     contract_id: str                          # used to write extracted_terms back to Supabase
     text: Optional[str] = None               # for paste input
-    image_url: Optional[str] = None          # for screenshot input (Supabase Storage URL)
+    image_url: Optional[str] = None          # for screenshot input (Supabase Storage URL) — kept for backward compatibility
+    image_urls: Optional[list[str]] = None   # support multiple screenshots
     input_type: Literal["paste", "screenshot", "manual"] = "paste"
 
 
@@ -99,6 +100,7 @@ class ChatRequest(BaseModel):
     contract_id: str
     content: Optional[str] = None
     image_url: Optional[str] = None
+    image_urls: Optional[list[str]] = None
     input_type: Literal["paste", "screenshot", "manual"] = "paste"
 
 

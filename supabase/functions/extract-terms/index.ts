@@ -211,42 +211,41 @@ serve(async (req) => {
   }
 
   try {
-    const { text, image_url, input_type } = await req.json();
+    const { text, image_url, image_urls, input_type } = await req.json();
 
-    if (!text && !image_url) {
+    if (!text && !image_url && (!image_urls || image_urls.length === 0)) {
       return Response.json(
-        { error: "Provide either text or image_url" },
+        { error: "Provide either text or image_url(s)" },
         { status: 400 }
       );
     }
 
-    // Build message content — text paste or image screenshot
-    let userContent: unknown[];
+    // Build message content — text paste or image screenshot(s)
+    let userContent: unknown[] = [];
 
-    if (input_type === "screenshot" && image_url) {
-      // Fetch the image from Supabase Storage and convert to base64
-      const imgResponse = await fetch(image_url);
-      const imgBuffer = await imgResponse.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
-      const mimeType = imgResponse.headers.get("content-type") ?? "image/png";
+    if (input_type === "screenshot") {
+      const urls = image_urls && image_urls.length ? image_urls : image_url ? [image_url] : [];
+      for (const url of urls) {
+        const imgResponse = await fetch(url);
+        const imgBuffer = await imgResponse.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)));
+        const mimeType = imgResponse.headers.get("content-type") ?? "image/png";
 
-      userContent = [
-        {
+        userContent.push({
           type: "image",
           source: { type: "base64", media_type: mimeType, data: base64 },
-        },
-        {
-          type: "text",
-          text: "Extract the agreement terms from this chat screenshot.",
-        },
-      ];
+        });
+      }
+
+      userContent.push({
+        type: "text",
+        text: "Extract the agreement terms from these chat screenshot(s).",
+      });
     } else {
-      userContent = [
-        {
-          type: "text",
-          text: `Extract the agreement terms from this conversation:\n\n${text}`,
-        },
-      ];
+      userContent.push({
+        type: "text",
+        text: `Extract the agreement terms from this conversation:\n\n${text}`,
+      });
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
