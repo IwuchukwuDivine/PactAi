@@ -169,6 +169,7 @@ async def extract_terms(request: ExtractTermsRequest) -> ExtractTermsResponse:
     payload = {
         "text": request.text,
         "image_url": request.image_url,
+        "image_urls": getattr(request, "image_urls", None),
         "input_type": request.input_type,
     }
 
@@ -375,6 +376,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
         # If stored images exist, expand content marker
         if m.get("images") and not content:
             content = "[screenshot]"
+        # Accept both 'assistant' and legacy 'ai' roles from stored messages
+        if role == "ai":
+            role = "assistant"
         if role in ("user", "assistant") and content:
             convo.append({"role": role, "content": content})
 
@@ -483,12 +487,43 @@ async def chat(request: ChatRequest) -> ChatResponse:
     if ready:
         contract = get_contract(contract_id)
         if contract:
-            # Pass through multiple screenshot URLs if available on contract row
+            # Build extraction input from the full conversation history (messages table)
+            # Fetch all messages for this contract in order and concatenate user/assistant turns
+            mresp = (
+                supabase.table("messages")
+                .select("role, content, images")
+                .eq("contract_id", contract_id)
+                .order("created_at", desc=False)
+                .execute()
+            )
+            mrows = mresp.data or []
+
+            convo_text_parts: list[str] = []
+            gathered_images: list[str] = []
+            for mr in mrows:
+                c = mr.get("content")
+                if c:
+                    convo_text_parts.append(c)
+                imgs = mr.get("images") or []
+                if imgs:
+                    # images may be stored as JSON arrays
+                    try:
+                        gathered_images.extend(imgs)
+                    except Exception:
+                        # if stored as a single string, append it
+                        if isinstance(imgs, str):
+                            gathered_images.append(imgs)
+
+            conversation_text = "\n\n".join(convo_text_parts).strip()
+
+            # Fallback to contract.raw_input if conversation_text is empty
+            if not conversation_text:
+                conversation_text = contract.get("raw_input")
+
             ext_req = ExtractTermsRequest(
                 contract_id=contract_id,
-                text=contract.get("raw_input"),
-                image_url=contract.get("screenshot_url"),
-                image_urls=contract.get("screenshot_urls"),
+                text=conversation_text,
+                image_urls=gathered_images if gathered_images else None,
                 input_type=contract.get("input_type", "paste"),
             )
             try:
