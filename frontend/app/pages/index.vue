@@ -1,49 +1,48 @@
 <template>
-  <div class="welcome">
-    <div class="welcome__content">
-      <div class="welcome__hero">
-        <img src="/logo.png" alt="Pact AI" class="welcome__logo" />
-        <h1 class="welcome__title">Welcome</h1>
-        <p class="welcome__subtitle">
-          Turn informal chats into legally binding contracts — in seconds.
-        </p>
-      </div>
-
-      <div class="welcome__features">
-        <div class="welcome__feature">
-          <LucideShieldCheck :size="20" />
-          <span>NDPR compliant</span>
+  <ClientOnly>
+    <Splash v-if="showSplash" @done="dismissSplash" />
+    <div v-else class="welcome">
+      <div class="welcome__content">
+        <div class="welcome__hero">
+          <img src="/logo.png" alt="Pact AI" class="welcome__logo">
+          <h1 class="welcome__title">Welcome</h1>
+          <p class="welcome__subtitle">
+            Turn informal chats into legally binding contracts — in seconds.
+          </p>
         </div>
-        <div class="welcome__feature">
-          <LucideLock :size="20" />
-          <span>Encrypted</span>
+
+        <div class="welcome__features">
+          <div class="welcome__feature">
+            <LucideShieldCheck :size="20" />
+            <span>NDPR compliant</span>
+          </div>
+          <div class="welcome__feature">
+            <LucideLock :size="20" />
+            <span>Encrypted</span>
+          </div>
+          <div class="welcome__feature">
+            <LucideClock :size="20" />
+            <span>Timestamped</span>
+          </div>
         </div>
-        <div class="welcome__feature">
-          <LucideClock :size="20" />
-          <span>Timestamped</span>
+
+        <div class="welcome__actions">
+          <AppButton
+            title="Create an account"
+            variant="outline"
+            block
+            @click="navigateTo('/SignUp')"
+          />
+          <AppButton
+            title="Sign in"
+            variant="primary"
+            block
+            @click="navigateTo('/SignIn')"
+          />
         </div>
       </div>
-
-      <div class="welcome__actions">
-        <AppButton
-          title="Create an account"
-          variant="outline"
-          block
-          @click="navigateTo('/SignUp')"
-        />
-        <AppButton
-          title="Sign in"
-          variant="primary"
-          block
-          @click="navigateTo('/SignIn')"
-        />
-      </div>
-
-      <button class="welcome__guest" @click="navigateTo('/Home')">
-        Continue as a Guest
-      </button>
     </div>
-  </div>
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">
@@ -54,6 +53,10 @@ useSeoMeta({
   description:
     "Turn informal chats into legally binding contracts — in seconds. Sign up or sign in to get started.",
 });
+const { showSplash } = useAuth();
+const dismissSplash = () => {
+  showSplash.value = false;
+};
 </script>
 
 <style scoped>
@@ -132,23 +135,6 @@ useSeoMeta({
   flex-direction: column;
   gap: 14px;
   width: 100%;
-}
-
-.welcome__guest {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--color-primary);
-  background: none;
-  border: none;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  padding: 8px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.welcome__guest:hover {
-  opacity: 0.7;
 }
 
 @media (min-width: 768px) {
