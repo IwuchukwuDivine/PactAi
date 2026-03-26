@@ -380,7 +380,7 @@ const restoredMessages = computed<UiChatMessage[]>(() => {
 });
 
 const uiMessages = computed<UiChatMessage[]>(
-  () => localMessages.value.length ? localMessages.value : restoredMessages.value,
+  () => localMessages.value.length ? [...localMessages.value] : restoredMessages.value,
 );
 
 watch(uiMessages, () => scrollToBottom(), { flush: "post" });
