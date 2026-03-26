@@ -4,7 +4,12 @@
     <AppHeader>
       <template #title>
         <p class="home__greeting-text">{{ greeting }},</p>
-        <h2 class="home__greeting-name">{{ firstName }}</h2>
+        <ClientOnly>
+          <h2 class="home__greeting-name">{{ firstName }}</h2>
+          <template #fallback>
+            <h2 class="home__greeting-name">there</h2>
+          </template>
+        </ClientOnly>
       </template>
       <template #action>
         <button class="home__notif" aria-label="Notifications">
