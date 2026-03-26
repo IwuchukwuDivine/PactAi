@@ -14,10 +14,7 @@
     </AppHeader>
 
     <!-- Loading state -->
-    <div v-if="isLoading || !contract" class="status-loading">
-      <div class="status-loading__spinner" />
-      <p>Loading contract…</p>
-    </div>
+    <SkeletonContractStatus v-if="isLoading || !contract" />
 
     <template v-else>
       <!-- Contract summary card -->
@@ -603,37 +600,6 @@ const handleCancel = () => {
   max-width: 560px;
   margin: 0 auto;
   padding: 0 0 24px;
-}
-
-/* Loading */
-.status-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 80px 20px;
-}
-
-.status-loading__spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--color-gray-light);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: status-spin 0.7s linear infinite;
-}
-
-@keyframes status-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.status-loading p {
-  font-size: 14px;
-  color: var(--color-gray-dark);
-  margin: 0;
 }
 
 .status-card__ref {

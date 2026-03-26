@@ -20,9 +20,7 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading && !filteredChats.length" class="history__loading">
-      <p>Loading chats...</p>
-    </div>
+    <SkeletonHistoryList v-if="isLoading && !filteredChats.length" />
 
     <!-- Chat list -->
     <div v-else-if="filteredChats.length" class="history__list">

@@ -19,10 +19,7 @@
     </AppHeader>
 
     <!-- Loading -->
-    <div v-if="isPageLoading" class="sign-loading">
-      <div class="sign-loading__spinner" />
-      <p>Loading contract…</p>
-    </div>
+    <SkeletonSignPage v-if="isPageLoading" />
 
     <template v-else-if="contract">
       <!-- Contract card -->
@@ -475,37 +472,6 @@ const handleDecline = async () => {
   min-height: 100dvh;
   background: var(--color-off-white);
   padding-bottom: 40px;
-}
-
-/* Loading */
-.sign-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 80px 20px;
-}
-
-.sign-loading__spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--color-gray-light);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: sign-spin 0.7s linear infinite;
-}
-
-@keyframes sign-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.sign-loading p {
-  font-size: 14px;
-  color: var(--color-gray-dark);
-  margin: 0;
 }
 
 /* Header */

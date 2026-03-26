@@ -25,9 +25,7 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="contracts__loading">
-      <p>Loading contracts...</p>
-    </div>
+    <SkeletonContractsList v-if="isLoading" />
 
     <!-- Contract list -->
     <div v-else-if="filteredContracts.length" class="contracts__list">

@@ -1,7 +1,7 @@
 <template>
   <div class="success-page">
     <div v-if="isLoading" class="success-content">
-      <div class="success-loading__spinner" />
+      <div class="success-spinner" />
     </div>
 
     <div v-else-if="contract" class="success-content">
@@ -175,10 +175,10 @@ const downloadPdf = () => {
   max-width: 420px;
 }
 
-.success-loading__spinner {
+.success-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--color-gray-light);
+  border: 3px solid rgba(45, 1, 2, 0.08);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: success-spin 0.7s linear infinite;

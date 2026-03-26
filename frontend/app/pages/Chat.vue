@@ -25,11 +25,7 @@
     <!-- Messages area -->
     <div ref="messagesRef" class="chat__messages">
       <!-- Loading history -->
-      <div v-if="isRestoringChat" class="chat__loading">
-        <div class="chat__loading-spinner" />
-        <p class="chat__loading-text">Loading conversation…</p>
-      </div>
-
+      <SkeletonChatHistory v-if="isRestoringChat" />
       <!-- Welcome state (only when no existing chat) -->
       <div v-else-if="showWelcome" class="chat__welcome">
         <div class="chat__welcome-icon">
@@ -263,7 +259,10 @@ const { data: messagesData, isLoading: isLoadingHistory } =
 const { refetch: refetchContract } = useContractQuery(contractId);
 
 const isRestoringChat = computed(
-  () => !!contractId.value && (isLoadingHistory.value || !messagesData.value) && !uiMessages.value.length,
+  () =>
+    !!contractId.value &&
+    (isLoadingHistory.value || !messagesData.value) &&
+    !uiMessages.value.length,
 );
 const showWelcome = computed(
   () => !contractId.value && !uiMessages.value.length,
@@ -661,35 +660,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-/* Loading state */
-.chat__loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin: auto 0;
-  padding: 40px 12px;
-}
-
-.chat__loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--color-border, #e5e7eb);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: chat-spin 0.7s linear infinite;
-}
-
-@keyframes chat-spin {
-  to { transform: rotate(360deg); }
-}
-
-.chat__loading-text {
-  font-size: 14px;
-  color: var(--color-text-secondary, #6b7280);
 }
 
 /* Welcome state */
