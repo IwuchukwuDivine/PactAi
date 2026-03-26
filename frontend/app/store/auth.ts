@@ -5,18 +5,19 @@ export const useAuthStore = defineStore(
   () => {
     const isLoggedIn = ref(false);
     const user = ref<User | null>(null);
+    const showSplash = ref(true);
 
     /******************* Actions *******************/
 
     return {
       isLoggedIn,
       user,
+      showSplash,
     };
   },
   {
     persist: {
       storage: import.meta.client ? localStorage : undefined,
-      omit: [],
     },
   },
 );

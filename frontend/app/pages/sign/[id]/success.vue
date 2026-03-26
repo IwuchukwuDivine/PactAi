@@ -1,6 +1,10 @@
 <template>
   <div class="success-page">
-    <div class="success-content">
+    <div v-if="isLoading" class="success-content">
+      <div class="success-spinner" />
+    </div>
+
+    <div v-else-if="contract" class="success-content">
       <!-- Animated check -->
       <div class="success-check">
         <div class="success-check__ring" />
@@ -9,8 +13,8 @@
 
       <h1 class="success-title">Contract signed!</h1>
       <p class="success-desc">
-        Your signature has been recorded and timestamped. Both parties will receive a
-        confirmed copy.
+        Your signature has been recorded and timestamped. Both parties will
+        receive a confirmed copy.
       </p>
 
       <!-- Details card -->
@@ -82,23 +86,61 @@
 
 <script setup lang="ts">
 import { LucideFileText, LucideDownload } from "lucide-vue-next";
+import type { Contract } from "~/utils/types/api";
 
 definePageMeta({ layout: false });
 
 const route = useRoute();
 const { addToast } = useToast();
+const { getContractByToken } = useSignContract();
 
 useSeoMeta({
   title: "Contract Signed",
-  description: "Contract signed successfully on Pact AI. Your digitally signed agreement is now legally binding.",
+  description:
+    "Contract signed successfully on Pact AI. Your digitally signed agreement is now legally binding.",
 });
 
-// TODO: fetch from API or receive via navigation state
-const contract = reactive({
-  title: "Logo Design for TechWave",
-  signedBy: "Chioma Nwosu",
-  timestamp: "Mar 23, 2026 at 2:47 PM WAT",
-  escrowAmount: "₦350,000",
+const signingToken = computed(() => route.params.id as string);
+const isLoading = ref(true);
+const contractData = ref<Contract | null>(null);
+const signerName = ref("");
+const signerSignedAt = ref("");
+
+onMounted(async () => {
+  const result = await getContractByToken(signingToken.value);
+  if (result) {
+    contractData.value = result.contracts;
+    signerName.value =
+      result.role === "service_provider"
+        ? result.contracts.service_provider?.name || "Service provider"
+        : result.contracts.client?.name || "Client";
+    signerSignedAt.value = new Date().toLocaleString("en-NG", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  }
+  isLoading.value = false;
+});
+
+const isPlaceholder = (v?: string) =>
+  !v || /^\s*<?\s*unknown\s*>?\s*$/i.test(v);
+
+const contract = computed(() => {
+  const c = contractData.value;
+  if (!c) return null;
+  const hasEscrow = c.escrow_proposed || c.escrow_active;
+  return {
+    title: c.title || "Untitled Contract",
+    signedBy: isPlaceholder(signerName.value) ? "Signer" : signerName.value,
+    timestamp: signerSignedAt.value,
+    escrowAmount: hasEscrow
+      ? formatCurrency(c.payment?.amount, c.payment?.currency)
+      : "",
+  };
 });
 
 const viewContract = () => {
@@ -106,8 +148,11 @@ const viewContract = () => {
 };
 
 const downloadPdf = () => {
-  // TODO: API call to download signed PDF
-  addToast("info", "PDF download will be available shortly.");
+  if (contractData.value?.contract_pdf_url) {
+    navigateTo(contractData.value.contract_pdf_url, { external: true });
+  } else {
+    addToast("info", "PDF download will be available shortly.");
+  }
 };
 </script>
 
@@ -128,6 +173,21 @@ const downloadPdf = () => {
   text-align: center;
   width: 100%;
   max-width: 420px;
+}
+
+.success-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(45, 1, 2, 0.08);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: success-spin 0.7s linear infinite;
+}
+
+@keyframes success-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Animated check */

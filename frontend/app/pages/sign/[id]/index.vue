@@ -8,7 +8,7 @@
           alt="Pact AI"
           class="sign-header__logo"
           @click="router.push('/Home')"
-        >
+        />
       </template>
       <template #action>
         <div class="sign-header__badge">
@@ -18,110 +18,115 @@
       </template>
     </AppHeader>
 
-    <!-- Contract card -->
-    <section class="sign-card">
-      <div class="sign-card__top">
-        <div class="sign-card__icon-wrap">
-          <LucideFileText :size="28" />
+    <!-- Loading -->
+    <SkeletonSignPage v-if="isPageLoading" />
+
+    <template v-else-if="contract">
+      <!-- Contract card -->
+      <section class="sign-card">
+        <div class="sign-card__top">
+          <div class="sign-card__icon-wrap">
+            <LucideFileText :size="28" />
+          </div>
+          <div class="sign-card__meta">
+            <h1 class="sign-card__title">{{ contract.title }}</h1>
+            <p class="sign-card__date">Created {{ contract.date }}</p>
+          </div>
         </div>
-        <div class="sign-card__meta">
-          <h1 class="sign-card__title">{{ contract.title }}</h1>
-          <p class="sign-card__date">Created {{ contract.date }}</p>
+
+        <div class="sign-card__parties">
+          <div class="sign-card__party">
+            <span class="sign-card__party-label">From</span>
+            <span class="sign-card__party-name">{{ contract.sender }}</span>
+          </div>
+          <div class="sign-card__party-divider">
+            <LucideArrowRight :size="16" />
+          </div>
+          <div class="sign-card__party">
+            <span class="sign-card__party-label">To</span>
+            <span class="sign-card__party-name">{{ contract.recipient }}</span>
+          </div>
         </div>
-      </div>
 
-      <div class="sign-card__parties">
-        <div class="sign-card__party">
-          <span class="sign-card__party-label">From</span>
-          <span class="sign-card__party-name">{{ contract.sender }}</span>
+        <!-- Status pill -->
+        <div
+          class="sign-card__status"
+          :class="`sign-card__status--${contract.status}`"
+        >
+          <LucideClock v-if="contract.status === 'pending'" :size="14" />
+          <LucideCircleCheck
+            v-else-if="contract.status === 'signed'"
+            :size="14"
+          />
+          <span>{{ statusLabel }}</span>
         </div>
-        <div class="sign-card__party-divider">
-          <LucideArrowRight :size="16" />
+      </section>
+
+      <!-- Contract body preview -->
+      <section class="sign-body">
+        <h2 class="sign-body__heading">Agreement details</h2>
+        <div class="sign-body__content">
+          <p v-for="(para, i) in contract.paragraphs" :key="i">{{ para }}</p>
         </div>
-        <div class="sign-card__party">
-          <span class="sign-card__party-label">To</span>
-          <span class="sign-card__party-name">{{ contract.recipient }}</span>
+
+        <!-- Key terms -->
+        <div v-if="contract.terms.length" class="sign-terms">
+          <h3 class="sign-terms__title">
+            <LucideListChecks :size="18" />
+            Key terms
+          </h3>
+          <ul class="sign-terms__list">
+            <li
+              v-for="(term, i) in contract.terms"
+              :key="i"
+              class="sign-terms__item"
+            >
+              <LucideCheck :size="14" class="sign-terms__check" />
+              <span>{{ term }}</span>
+            </li>
+          </ul>
         </div>
-      </div>
+      </section>
 
-      <!-- Status pill -->
-      <div
-        class="sign-card__status"
-        :class="`sign-card__status--${contract.status}`"
-      >
-        <LucideClock v-if="contract.status === 'pending'" :size="14" />
-        <LucideCircleCheck
-          v-else-if="contract.status === 'signed'"
-          :size="14"
-        />
-        <span>{{ statusLabel }}</span>
-      </div>
-    </section>
+      <!-- Escrow notice -->
+      <section v-if="contract.escrowAmount" class="sign-escrow">
+        <div class="sign-escrow__icon">
+          <LucideLock :size="18" />
+        </div>
+        <div class="sign-escrow__text">
+          <p class="sign-escrow__label">Escrow protected</p>
+          <p class="sign-escrow__amount">{{ contract.escrowAmount }}</p>
+        </div>
+      </section>
 
-    <!-- Contract body preview -->
-    <section class="sign-body">
-      <h2 class="sign-body__heading">Agreement details</h2>
-      <div class="sign-body__content">
-        <p v-for="(para, i) in contract.paragraphs" :key="i">{{ para }}</p>
-      </div>
+      <!-- Signature area -->
+      <section class="sign-action">
+        <div class="sign-action__notice">
+          <LucideInfo :size="16" />
+          <p>
+            By signing, you agree to the terms above. This creates a legally
+            timestamped record.
+          </p>
+        </div>
 
-      <!-- Key terms -->
-      <div v-if="contract.terms.length" class="sign-terms">
-        <h3 class="sign-terms__title">
-          <LucideListChecks :size="18" />
-          Key terms
-        </h3>
-        <ul class="sign-terms__list">
-          <li
-            v-for="(term, i) in contract.terms"
-            :key="i"
-            class="sign-terms__item"
-          >
-            <LucideCheck :size="14" class="sign-terms__check" />
-            <span>{{ term }}</span>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Escrow notice -->
-    <section v-if="contract.escrowAmount" class="sign-escrow">
-      <div class="sign-escrow__icon">
-        <LucideLock :size="18" />
-      </div>
-      <div class="sign-escrow__text">
-        <p class="sign-escrow__label">Escrow protected</p>
-        <p class="sign-escrow__amount">{{ contract.escrowAmount }}</p>
-      </div>
-    </section>
-
-    <!-- Signature area -->
-    <section class="sign-action">
-      <div class="sign-action__notice">
-        <LucideInfo :size="16" />
-        <p>
-          By signing, you agree to the terms above. This creates a legally
-          timestamped record.
-        </p>
-      </div>
-
-      <div class="sign-action__buttons">
-        <AppButton
-          title="Decline"
-          variant="outline"
-          block
-          @click="showDecline = true"
-        />
-        <AppButton
-          title="Sign contract"
-          variant="primary"
-          block
-          :loading="isSigning"
-          :prepend-icon="LucidePen"
-          @click="showConfirm = true"
-        />
-      </div>
-    </section>
+        <div class="sign-action__buttons">
+          <AppButton
+            title="Decline"
+            variant="outline"
+            block
+            @click="showDecline = true"
+          />
+          <AppButton
+            title="Sign contract"
+            variant="primary"
+            block
+            :loading="isSigning"
+            :prepend-icon="LucidePen"
+            @click="showConfirm = true"
+          />
+        </div>
+      </section>
+    </template>
 
     <!-- Confirm sign slider -->
     <BottomSlider v-model="showConfirm">
@@ -131,7 +136,7 @@
         </div>
         <h2 class="confirm-content__title">Confirm your signature</h2>
         <p class="confirm-content__desc">
-          You're about to sign <strong>"{{ contract.title }}"</strong>. This
+          You're about to sign <strong>"{{ contract?.title }}"</strong>. This
           action is final and creates a timestamped legal record.
         </p>
 
@@ -172,24 +177,25 @@
         </div>
         <h2 class="escrow-fund__title">Fund escrow</h2>
         <p class="escrow-fund__desc">
-          This contract requires <strong>{{ contract.escrowAmount }}</strong> to
-          be held in escrow until the agreed conditions are met.
+          This contract requires
+          <strong>{{ contract?.escrowAmount }}</strong> to be held in escrow
+          until the agreed conditions are met.
         </p>
 
         <div class="escrow-fund__summary">
           <div class="escrow-fund__row">
             <span>Contract</span>
-            <span>{{ contract.title }}</span>
+            <span>{{ contract?.title }}</span>
           </div>
           <div class="escrow-fund__row-divider" />
           <div class="escrow-fund__row">
             <span>Amount</span>
-            <strong>{{ contract.escrowAmount }}</strong>
+            <strong>{{ contract?.escrowAmount }}</strong>
           </div>
           <div class="escrow-fund__row-divider" />
           <div class="escrow-fund__row">
             <span>Release</span>
-            <span>{{ contract.escrowCondition }}</span>
+            <span>{{ contract?.escrowCondition }}</span>
           </div>
         </div>
 
@@ -256,16 +262,21 @@
 <script setup lang="ts">
 import { LucidePen, LucideFingerprint, LucideWallet } from "lucide-vue-next";
 import { requiredRules } from "~/utils/types/rules";
+import type { Contract, SignatureWithContract } from "~/utils/types/api";
 
 definePageMeta({ layout: false });
 
 const route = useRoute();
 const router = useRouter();
 const { addToast } = useToast();
+const { getContractByToken, signContract } = useSignContract();
+const { useDeclineSignature } = await import("~/composables/useRequest");
+const declineMutation = useDeclineSignature();
 
 useSeoMeta({
   title: "Sign Contract",
-  description: "You've been invited to review and sign a contract on Pact AI. Review the terms and sign securely.",
+  description:
+    "You've been invited to review and sign a contract on Pact AI. Review the terms and sign securely.",
   ogTitle: "You're invited to sign a contract — Pact AI",
   ogDescription: "Review and sign your contract securely on Pact AI.",
 });
@@ -279,47 +290,125 @@ const isFunding = ref(false);
 const signatureName = ref("");
 const isNameValid = ref(false);
 const declineReason = ref("");
+const isPageLoading = ref(true);
 
-// TODO: fetch from API using route.params.id
-const contract = reactive({
-  title: "Logo Design for TechWave",
-  date: "Mar 20, 2026",
-  sender: "Adewale Johnson",
-  recipient: "Chioma Nwosu",
-  status: "pending" as "pending" | "signed" | "declined",
-  escrowAmount: "₦350,000",
-  escrowCondition: "On delivery",
-  paragraphs: [
-    "This agreement is between Adewale Johnson (Client) and Chioma Nwosu (Designer) for the creation of a brand logo and identity package for TechWave Solutions.",
-    "The Designer agrees to deliver three initial concepts within 7 business days of signing. The Client will select one concept for refinement, with up to two rounds of revisions included.",
-    "Final deliverables include the logo in SVG, PNG, and PDF formats, along with a basic brand guidelines document.",
-  ],
-  terms: [
-    "Payment of ₦350,000 held in escrow until delivery",
-    "3 initial concepts, 2 revision rounds",
-    "7 business days delivery timeline",
-    "All rights transfer to Client upon final payment release",
-  ],
+const signingToken = computed(() => route.params.id as string);
+const signatureData = ref<SignatureWithContract | null>(null);
+const contractData = ref<Contract | null>(null);
+const signatureId = ref("");
+
+onMounted(async () => {
+  const result = await getContractByToken(signingToken.value);
+  if (!result) {
+    addToast("error", "Invalid or expired signing link.");
+    router.replace("/");
+    return;
+  }
+  signatureData.value = result;
+  contractData.value = result.contracts;
+  signatureId.value = result.id;
+  isPageLoading.value = false;
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const isPlaceholder = (v?: string) =>
+  !v || /^\s*<?\s*unknown\s*>?\s*$/i.test(v);
+
+const formatDate = (iso?: string) => {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-NG", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+// ── Derived contract view ──────────────────────────────────────────────────
+
+const contract = computed(() => {
+  const c = contractData.value;
+  if (!c) return null;
+
+  const spName = isPlaceholder(c.service_provider?.name)
+    ? "Service provider"
+    : c.service_provider!.name;
+  const clientName = isPlaceholder(c.client?.name) ? "Client" : c.client!.name;
+
+  const hasEscrow = c.escrow_proposed || c.escrow_active;
+  const escrowAmt = formatCurrency(c.payment?.amount, c.payment?.currency);
+  const escrowCondition =
+    c.payment?.schedule === "milestone" ? "Per milestone" : "On delivery";
+
+  const terms: string[] = [];
+  if (c.payment?.amount)
+    terms.push(`Payment: ${escrowAmt}${hasEscrow ? " (escrow)" : ""}`);
+  if (c.deliverables?.items?.length) {
+    c.deliverables.items
+      .filter((d) => !isPlaceholder(d))
+      .forEach((d) => terms.push(d));
+  }
+  if (c.timeline?.deadline)
+    terms.push(`Deadline: ${formatDate(c.timeline.deadline)}`);
+  if (c.deliverables?.revision_limit != null)
+    terms.push(`${c.deliverables.revision_limit} revision rounds`);
+
+  const paragraphs: string[] = [];
+  if (c.contract_html) {
+    const div = document.createElement("div");
+    div.innerHTML = c.contract_html;
+    div.querySelectorAll("p").forEach((p) => {
+      if (p.textContent?.trim()) paragraphs.push(p.textContent.trim());
+    });
+  }
+  if (!paragraphs.length && c.raw_input) paragraphs.push(c.raw_input);
+
+  return {
+    title: c.title || "Untitled Contract",
+    date: formatDate(c.created_at),
+    sender: spName,
+    recipient: clientName,
+    status: (signatureData.value?.status === "signed"
+      ? "signed"
+      : signatureData.value?.status === "rejected"
+        ? "declined"
+        : "pending") as "pending" | "signed" | "declined",
+    escrowAmount: hasEscrow ? escrowAmt : "",
+    escrowCondition: hasEscrow ? escrowCondition : "",
+    paragraphs,
+    terms,
+    paymentUrl: c.interswitch_payment_url,
+  };
 });
 
 const statusLabel = computed(() => {
+  if (!contract.value) return "";
   const labels = {
     pending: "Awaiting signature",
     signed: "Signed",
     declined: "Declined",
   };
-  return labels[contract.status];
+  return labels[contract.value.status];
 });
 
+// ── Actions ────────────────────────────────────────────────────────────────
+
 const handleSign = async () => {
-  if (!isNameValid.value) return;
+  if (!isNameValid.value || !contractData.value) return;
   isSigning.value = true;
   try {
-    // TODO: API call to sign contract
-    await new Promise((r) => setTimeout(r, 1500));
+    const result = await signContract({
+      signing_token: signingToken.value,
+      confirmed_name: signatureName.value,
+      signature_method: "type",
+      signature_data: signatureName.value,
+    });
+
+    if (!result?.success) throw new Error("Signing failed");
+
     showConfirm.value = false;
 
-    if (contract.escrowAmount) {
+    if (contract.value?.escrowAmount && result.escrow_payment_url) {
       setTimeout(() => {
         showEscrowFund.value = true;
       }, 350);
@@ -336,11 +425,12 @@ const handleSign = async () => {
 const handleFundEscrow = async () => {
   isFunding.value = true;
   try {
-    // TODO: API call to initiate payment / fund escrow
-    await new Promise((r) => setTimeout(r, 1500));
-    showEscrowFund.value = false;
-    addToast("success", "Escrow funded successfully!");
-    router.push(`/sign/${route.params.id}/success`);
+    if (contract.value?.paymentUrl) {
+      navigateTo(contract.value.paymentUrl, { external: true });
+    } else {
+      showEscrowFund.value = false;
+      router.push(`/sign/${route.params.id}/success`);
+    }
   } catch {
     addToast("error", "Payment failed. Please try again.");
   } finally {
@@ -355,10 +445,17 @@ const skipEscrow = () => {
 };
 
 const handleDecline = async () => {
+  if (!contractData.value) return;
   isDeclining.value = true;
   try {
-    // TODO: API call to decline contract
-    await new Promise((r) => setTimeout(r, 1200));
+    await declineMutation.mutateAsync({
+      contractId: contractData.value.id,
+      signatureId: signatureId.value,
+      payload: {
+        reason: declineReason.value || "No reason provided",
+        signing_token: signingToken.value,
+      },
+    });
     showDecline.value = false;
     addToast("info", "Contract declined. The sender has been notified.");
     router.replace("/");

@@ -316,3 +316,28 @@ select {
     font-size: 26px;
   }
 }
+
+/* ── Skeleton loaders ────────────────────────────────────────────────────── */
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sk {
+  background: rgba(45, 1, 2, 0.06);
+  border-radius: 8px;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.sk--circle {
+  border-radius: 50%;
+}
+
+.sk--rounded {
+  border-radius: 14px;
+}
+
+.sk--pill {
+  border-radius: 99px;
+}

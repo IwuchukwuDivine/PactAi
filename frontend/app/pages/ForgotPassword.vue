@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { emailRules } from "~/utils/types/rules";
 
-definePageMeta({ layout: "auth" });
+definePageMeta({ layout: "auth", middleware: "auth" });
 
 useSeoMeta({
   title: "Reset Password",
