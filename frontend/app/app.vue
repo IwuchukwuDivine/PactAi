@@ -1,6 +1,5 @@
 <template>
   <AppToast />
-
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>

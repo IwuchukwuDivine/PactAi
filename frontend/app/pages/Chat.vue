@@ -432,7 +432,7 @@ const handleSend = async () => {
     const response = await sendChatMutation.mutateAsync({
       contract_id: contractId.value,
       content: text || undefined,
-      image_url: imageUrls[0],
+      image_urls: imageUrls,
       input_type: inputType,
     });
 
