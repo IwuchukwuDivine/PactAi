@@ -91,6 +91,7 @@ export interface ExtractTermsPayload {
   contract_id: string;
   text?: string;
   image_url?: string;
+  image_urls?: string[];
   input_type: "paste" | "screenshot" | "manual";
 }
 
@@ -115,6 +116,7 @@ export interface ChatPayload {
   contract_id: string;
   content?: string;
   image_url?: string;
+  image_urls?: string[];
   input_type: "paste" | "screenshot" | "manual";
 }
 
