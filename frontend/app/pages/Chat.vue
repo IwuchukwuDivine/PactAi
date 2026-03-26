@@ -196,6 +196,7 @@ import {
 } from "lucide-vue-next";
 import type { ContractCard } from "~/components/Chat/BubbleAi.vue";
 import type { Contract } from "~/utils/types/api";
+import { useQueryClient } from "@tanstack/vue-query";
 import {
   useSendChatMessage,
   useChatMessagesQuery,
@@ -240,7 +241,7 @@ const firstName = computed(
   () => user.value?.user_metadata?.first_name || "there",
 );
 
-const uiMessages = ref<UiChatMessage[]>([]);
+const localMessages = ref<UiChatMessage[]>([]);
 const inputText = ref("");
 const pendingImages = ref<PendingImage[]>([]);
 const messagesRef = ref<HTMLElement | null>(null);
@@ -252,11 +253,13 @@ const contractId = ref<string | null>((route.query.id as string) ?? null);
 
 // ── API hooks ──────────────────────────────────────────────────────────────
 
+const qc = useQueryClient();
 const sendChatMutation = useSendChatMessage();
 const createContractMutation = useCreateContract();
 const { data: messagesData, isLoading: isLoadingHistory } =
   useChatMessagesQuery(contractId);
-const { refetch: refetchContract } = useContractQuery(contractId);
+const { data: contractData, refetch: refetchContract } =
+  useContractQuery(contractId);
 
 const isRestoringChat = computed(
   () =>
@@ -331,41 +334,7 @@ const inferInputType = (
   return "manual";
 };
 
-// ── Populate UI messages from loaded history ──────────────────────────────
-
-watch(
-  messagesData,
-  async (res) => {
-    if (!res?.messages?.length) return;
-    if (uiMessages.value.length) return;
-
-    const mapped: UiChatMessage[] = [];
-
-    for (const m of res.messages) {
-      mapped.push({
-        role: m.role === "ai" ? "ai" : "user",
-        text: m.text,
-        images: m.images?.length ? m.images : undefined,
-        time: formatTime(m.created_at),
-      });
-
-      if (m.metadata?.ready && contractId.value) {
-        const { data } = await refetchContract();
-        if (data) {
-          mapped.push({
-            role: "ai",
-            contract: buildContractCard(data),
-            time: formatTime(m.created_at),
-          });
-        }
-      }
-    }
-
-    uiMessages.value = mapped;
-    scrollToBottom();
-  },
-  { immediate: true },
-);
+// ── Build contract card ───────────────────────────────────────────────────
 
 const buildContractCard = (contract: Contract): ContractCard => {
   const parties = [contract.service_provider?.name, contract.client?.name]
@@ -378,6 +347,44 @@ const buildContractCard = (contract: Contract): ContractCard => {
   };
 };
 
+// ── Messages (derived) ────────────────────────────────────────────────────
+
+const restoredMessages = computed<UiChatMessage[]>(() => {
+  const res = messagesData.value;
+  if (!res?.messages?.length) return [];
+
+  const msgs: UiChatMessage[] = res.messages.map(
+    (m): UiChatMessage => ({
+      role: m.role === "ai" ? "ai" : "user",
+      text: m.text,
+      images: m.images?.length ? m.images : undefined,
+      time: formatTime(m.created_at),
+    }),
+  );
+
+  const readyMsg = res.messages.find((m) => m.metadata?.ready);
+  if (readyMsg && contractId.value) {
+    const contract =
+      qc.getQueryData<Contract>(["contract", contractId.value]) ??
+      contractData.value;
+    if (contract) {
+      msgs.push({
+        role: "ai",
+        contract: buildContractCard(contract),
+        time: formatTime(readyMsg.created_at),
+      });
+    }
+  }
+
+  return msgs;
+});
+
+const uiMessages = computed<UiChatMessage[]>(
+  () => localMessages.value.length ? localMessages.value : restoredMessages.value,
+);
+
+watch(uiMessages, () => scrollToBottom(), { flush: "post" });
+onMounted(() => scrollToBottom());
 // ── Core send logic ────────────────────────────────────────────────────────
 
 const sendSuggestion = (text: string) => {
@@ -387,6 +394,10 @@ const sendSuggestion = (text: string) => {
 
 const handleSend = async () => {
   if (!canSend.value) return;
+
+  if (!localMessages.value.length && restoredMessages.value.length) {
+    localMessages.value = [...restoredMessages.value];
+  }
 
   const text = inputText.value.trim();
   const hasImages = pendingImages.value.length > 0;
@@ -400,15 +411,13 @@ const handleSend = async () => {
   if (text) userMsg.text = text;
   if (localImageUrls.length) userMsg.images = localImageUrls;
 
-  uiMessages.value.push(userMsg);
+  localMessages.value.push(userMsg);
   inputText.value = "";
   pendingImages.value = [];
   if (textareaRef.value) textareaRef.value.style.height = "auto";
-  scrollToBottom();
 
   isSending.value = true;
-  uiMessages.value.push({ role: "ai", typing: true });
-  scrollToBottom();
+  localMessages.value.push({ role: "ai", typing: true });
 
   try {
     let imageUrls: string[] = [];
@@ -440,7 +449,7 @@ const handleSend = async () => {
 
     const aiMsg = response.messages?.[0];
     if (aiMsg) {
-      uiMessages.value.push({
+      localMessages.value.push({
         role: "ai",
         text: aiMsg.content,
         time: formatTime(aiMsg.created_at),
@@ -450,7 +459,7 @@ const handleSend = async () => {
     if (response.ready && contractId.value) {
       const { data: fresh } = await refetchContract();
       if (fresh) {
-        uiMessages.value.push({
+        localMessages.value.push({
           role: "ai",
           contract: buildContractCard(fresh),
           time: formatTime(),
@@ -462,13 +471,12 @@ const handleSend = async () => {
     addToast("error", "Failed to send message. Please try again.");
   } finally {
     isSending.value = false;
-    scrollToBottom();
   }
 };
 
 const removeTypingBubble = () => {
-  const idx = uiMessages.value.findIndex((m) => m.typing);
-  if (idx !== -1) uiMessages.value.splice(idx, 1);
+  const idx = localMessages.value.findIndex((m) => m.typing);
+  if (idx !== -1) localMessages.value.splice(idx, 1);
 };
 
 const viewContract = (id: string) => {
@@ -545,7 +553,7 @@ const removePendingImage = (index: number) => {
 // ── Options actions ────────────────────────────────────────────────────────
 
 const handleNewChat = () => {
-  uiMessages.value = [];
+  localMessages.value = [];
   pendingImages.value = [];
   inputText.value = "";
   contractId.value = null;
