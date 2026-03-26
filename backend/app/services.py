@@ -598,10 +598,99 @@ def decline_signature(contract_id: str, signature_id: str, reason: str) -> dict:
     return {"success": True}
 
 
-def get_contract_pdf(contract_id: str) -> dict:
-    """Return the contract_pdf_url for a contract or raise if not found."""
+def decline_signature_with_token(contract_id: str, signature_id: str, signing_token: str, reason: str) -> dict:
+    """Allow a signer to decline using their signing_token (used by public signing link flows)."""
+    # Fetch signature row by signing_token
+    resp = supabase.table("signatures").select("id, contract_id, signing_token, status").eq("signing_token", signing_token).single().execute()
+    sig = resp.data
+    if not sig:
+        raise Exception("Invalid signing token")
+    if str(sig.get("id")) != signature_id:
+        raise Exception("Signing token does not match signature id")
+    if str(sig.get("contract_id")) != contract_id:
+        raise Exception("Signature does not belong to contract")
+
+    # Update signature to rejected
+    supabase.table("signatures").update({
+        "status": "rejected",
+        "rejection_note": reason,
+        "rejected_at": datetime.utcnow().isoformat(),
+        "status_updated_at": datetime.utcnow().isoformat(),
+    }).eq("id", signature_id).execute()
+
+    # Insert event
+    supabase.table("contract_events").insert({
+        "contract_id": contract_id,
+        "actor_role": "client",
+        "event_type": "signature_rejected",
+        "metadata": {"signature_id": signature_id, "reason": reason},
+    }).execute()
+
+    return {"success": True}
+
+
+def get_contract_pdf(contract_id: str, expires: int = 300) -> dict:
+    """Return a presigned URL for the contract PDF stored in the 'contracts' bucket.
+
+    - expires: seconds until URL expires (default 5 minutes)
+    - If the stored `contract_pdf_url` is already a full URL, return it as-is.
+    - If it's a storage path, call Supabase Storage to create a signed URL.
+    """
     resp = supabase.table("contracts").select("contract_pdf_url").eq("id", contract_id).single().execute()
     c = resp.data
     if not c or not c.get("contract_pdf_url"):
         raise Exception("No PDF available for this contract")
-    return {"contract_pdf_url": c.get("contract_pdf_url")}
+
+    stored = c.get("contract_pdf_url")
+
+    # If stored looks like a full URL, return it directly
+    if isinstance(stored, str) and (stored.startswith("http://") or stored.startswith("https://")):
+        return {"contract_pdf_url": stored}
+
+    # Otherwise treat it as a storage path and request a signed URL
+    try:
+        # supabase-py storage API: supabase.storage.from_(bucket).create_signed_url(path, expires_in)
+        bucket = "contracts"
+        result = supabase.storage.from_(bucket).create_signed_url(stored, expires)
+
+        # result shape may vary between client versions. Try common keys.
+        url = None
+        if isinstance(result, dict):
+            # supabase-py may return {'signed_url': '...'} or {'data': {'signedURL': '...'}}
+            url = (
+                result.get("signed_url")
+                or result.get("signedURL")
+                or result.get("signedUrl")
+                or (result.get("data") or {}).get("signedURL")
+                or (result.get("data") or {}).get("signed_url")
+                or (result.get("data") or {}).get("signedUrl")
+            )
+        else:
+            # Some clients return an object with attribute 'signed_url'
+            url = getattr(result, "signed_url", None)
+            if not url:
+                url = getattr(result, "data", None) and getattr(result.data, "signedURL", None)
+
+        if not url:
+            # Fallback to constructing a public URL pattern — best-effort and may not work
+            # Construct: <SUPABASE_URL>/storage/v1/object/public/<bucket>/<path>
+            base = settings.supabase_url.rstrip("/")
+            url = f"{base}/storage/v1/object/public/{bucket}/{stored}"
+
+        return {"contract_pdf_url": url}
+    except Exception as e:
+        # If signing fails, fall back to stored value or raise depending on policy
+        try:
+            base = settings.supabase_url.rstrip("/")
+            fallback = f"{base}/storage/v1/object/public/contracts/{stored}"
+            return {"contract_pdf_url": fallback}
+        except Exception:
+            raise Exception("Failed to generate presigned URL and no fallback available: " + str(e))
+
+
+def validate_signing_token_for_contract(signing_token: str, contract_id: str) -> bool:
+    resp = supabase.table("signatures").select("id, signing_token, contract_id").eq("signing_token", signing_token).single().execute()
+    sig = resp.data
+    if not sig:
+        return False
+    return str(sig.get("contract_id")) == contract_id

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Query
 from app.schemas import (
     ExtractTermsRequest,
     ExtractTermsResponse,
@@ -58,5 +58,27 @@ async def extract_terms(request: ExtractTermsRequest):
     try:
         result = await services.extract_terms(request)
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{contract_id}/pdf", summary="Get contract PDF URL or presigned link")
+def get_contract_pdf(contract_id: str, x_owner_id: str = Header(None, alias="x-owner-id"), signing_token: str | None = Query(None)):
+    """Return the contract PDF URL. Owner header or valid signing_token required."""
+    try:
+        # Authorize: either owner or valid signing token
+        if not x_owner_id and not signing_token:
+            raise HTTPException(status_code=401, detail="Missing owner header or signing_token")
+
+        # If signing_token provided, validate it belongs to a signature for this contract
+        if signing_token:
+            valid = services.validate_signing_token_for_contract(signing_token, contract_id)
+            if not valid:
+                raise HTTPException(status_code=403, detail="Invalid signing token for this contract")
+
+        result = services.get_contract_pdf(contract_id)
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
