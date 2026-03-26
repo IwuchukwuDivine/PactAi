@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
 
     # Resend
-    resend_api_key: str
+    resend_api_key: Optional[str] = None
 
     # Interswitch (sandbox)
     interswitch_base_url: str = "https://qa.interswitchng.com"
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     interswitch_secret: str
     interswitch_merchant_code: str
     interswitch_pay_item_id: str
-    interswitch_entity_code: str
+    interswitch_entity_code: Optional[str] = None
 
     # App
     app_url: str  # e.g. https://pactai.com — used for signing link URLs
