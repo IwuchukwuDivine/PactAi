@@ -398,12 +398,109 @@ async def chat(request: ChatRequest) -> ChatResponse:
     # Append current user message
     convo.append({"role": "user", "content": user_text})
 
-    # Build the user_assistant_messages per Anthropic expected shape
-    user_assistant_messages = [
-        {"role": m["role"], "content": m["content"]}
-        for m in convo
-        if m.get("role") in ("user", "assistant") and m.get("content")
-    ]
+    # If this message includes images, run the extractor first and persist an assistant
+    # message containing the extractor's summary. Then continue the normal Claude flow
+    # so Claude can ask follow-ups using the extractor output as the assistant's last reply.
+    persisted_early = False
+    if images:
+        # Prepare and persist the user row first
+        user_row = {
+            "contract_id": contract_id,
+            "role": "user",
+            "content": user_text,
+            "images": images,
+        }
+        try:
+            supabase.table("messages").insert([user_row]).execute()
+            persisted_early = True
+        except Exception as e:
+            print("Failed to persist user message before extraction:", e)
+
+        # Call extractor with the provided images (and any optional user text if present)
+        ext_req = ExtractTermsRequest(
+            contract_id=contract_id,
+            text=user_text if user_text else None,
+            image_urls=images,
+            input_type=getattr(request, "input_type", "paste"),
+        )
+        try:
+            ext_resp = await extract_terms(ext_req)
+            # ext_resp.extracted_terms may be a pydantic model or dict; normalise to dict
+            extracted = getattr(ext_resp, "extracted_terms", None)
+            if hasattr(extracted, "dict"):
+                terms = extracted.dict()
+            elif isinstance(extracted, dict):
+                terms = extracted
+            else:
+                # best-effort fallback
+                try:
+                    terms = dict(extracted)
+                except Exception:
+                    terms = {}
+        except Exception as e:
+            print("extract_terms failed when called from image path:", e)
+            terms = {}
+
+        # Build a concise human-friendly assistant summary from the extracted terms
+        parts = []
+        if terms.get("service_provider"):
+            parts.append(f"Service provider: {terms.get('service_provider')}")
+        if terms.get("client"):
+            parts.append(f"Client: {terms.get('client')}")
+        if terms.get("deliverables"):
+            parts.append(f"Deliverables: {terms.get('deliverables')}")
+        if terms.get("payment"):
+            parts.append(f"Payment: {terms.get('payment')}")
+        if terms.get("timeline"):
+            parts.append(f"Timeline: {terms.get('timeline')}")
+        if terms.get("ambiguities"):
+            amb = terms.get("ambiguities")
+            if isinstance(amb, list) and amb:
+                parts.append(f"Ambiguities: {len(amb)} items flagged")
+
+        if parts:
+            extractor_summary = "\n".join(parts)
+            assistant_summary = f"I extracted the following terms from the images:\n\n{extractor_summary}"
+        else:
+            assistant_summary = "I processed the images and produced an initial extraction, but no clear structured terms were found. Please provide more details."
+
+        assistant_row = {
+            "contract_id": contract_id,
+            "role": "assistant",
+            "content": assistant_summary,
+            "metadata": {"from_extractor": True},
+        }
+
+        try:
+            supabase.table("messages").insert([assistant_row]).execute()
+        except Exception as e:
+            print("Failed to persist extractor assistant message:", e)
+
+        # Rebuild conversation from persisted history so Claude sees the extractor summary
+        resp2 = (
+            supabase.table("messages")
+            .select("role, content")
+            .eq("contract_id", contract_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        history2 = resp2.data or []
+        user_assistant_messages = []
+        for m in history2:
+            role = m.get("role")
+            content = m.get("content")
+            if role == "ai":
+                role = "assistant"
+            if role in ("user", "assistant") and content:
+                user_assistant_messages.append({"role": role, "content": content})
+
+    else:
+        # Build the user_assistant_messages per Anthropic expected shape
+        user_assistant_messages = [
+            {"role": m["role"], "content": m["content"]}
+            for m in convo
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ]
 
     # System prompt: instruct Claude to be conversational and to signal readiness
     system_prompt = (
@@ -464,7 +561,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "role": "user",
         "content": user_text,
     }
-    if images:
+    if images and not persisted_early:
         user_row["images"] = images
 
     assistant_row = {
@@ -479,7 +576,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     # Persist messages (let DB set created_at)
     try:
-        supabase.table("messages").insert(rows).execute()
+        if not persisted_early:
+            supabase.table("messages").insert(rows).execute()
+        else:
+            # If we persisted the user and extractor assistant early, only persist Claude's assistant reply now
+            supabase.table("messages").insert([assistant_row]).execute()
     except Exception as e:
         print("Failed to persist messages:", e)
 
