@@ -100,7 +100,7 @@ class ChatRequest(BaseModel):
     contract_id: str
     content: Optional[str] = None
     image_url: Optional[str] = None
-    image_urls: Optional[list[str]] = None
+    image_urls: Optional[list[str]] = []
     input_type: Literal["paste", "screenshot", "manual"] = "paste"
 
 

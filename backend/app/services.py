@@ -137,7 +137,29 @@ def get_contract(contract_id: str) -> dict | None:
         .single()
         .execute()
     )
-    return response.data
+    contract = response.data
+    if not contract:
+        return None
+
+    # Fetch signatures
+    sig_resp = (
+        supabase.table("signatures")
+        .select("id, party_role, status, signed_at, signer_name, signer_email, escrow_consent")
+        .eq("contract_id", contract_id)
+        .execute()
+    )
+    contract["signatures"] = sig_resp.data
+
+    # Fetch escrow conditions
+    escrow_resp = (
+        supabase.table("escrow_conditions")
+        .select("id, label, service_provider_confirmed, client_confirmed, milestone_id")
+        .eq("contract_id", contract_id)
+        .execute()
+    )
+    contract["escrow_conditions"] = escrow_resp.data
+
+    return contract
 
 
 def get_contracts_by_owner(owner_id: str) -> list[dict]:
@@ -198,6 +220,7 @@ async def extract_terms(request: ExtractTermsRequest) -> ExtractTermsResponse:
         "timeline": terms.get("timeline"),
         "default_clause": terms.get("default_clause"),
         "ambiguities": terms.get("ambiguities"),
+        "status": "negotiating",
     }).eq("id", request.contract_id).execute()
 
     supabase.table("contract_events").insert({
@@ -344,9 +367,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
     user_text = request.content or ""
     images = []
     # Support both backward-compatible single image_url and new image_urls array
-    if getattr(request, "image_urls", None):
-        images = request.image_urls or []
-    elif getattr(request, "image_url", None):
+    if request.image_urls:
+        images = request.image_urls
+    elif request.image_url:
         images = [request.image_url]
 
     # Validate number of images
@@ -421,7 +444,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             contract_id=contract_id,
             text=user_text if user_text else None,
             image_urls=images,
-            input_type=getattr(request, "input_type", "paste"),
+            input_type=request.input_type,
         )
         try:
             ext_resp = await extract_terms(ext_req)
@@ -629,8 +652,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
             try:
                 await extract_terms(ext_req)
+                # Refetch contract to check if extracted_terms is populated
+                updated_contract = get_contract(contract_id)
+                if updated_contract and updated_contract.get("extracted_terms"):
+                    ready = True
+                else:
+                    ready = False
             except Exception as e:
                 print("extract_terms failed from chat flow:", e)
+                ready = False
 
     # Return assistant message and ready flag
     msg = MessageResponse(role="assistant", content=ai_text, created_at=datetime.utcnow())
