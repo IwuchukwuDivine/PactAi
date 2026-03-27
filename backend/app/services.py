@@ -551,13 +551,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
         user_text = "[screenshot]"
 
     # Fetch existing message history for this contract
-    resp = (
-        supabase.table("messages")
-        .select("*")
-        .eq("contract_id", contract_id)
-        .order("created_at", desc=False)
-        .execute()
-    )
+    def _fetch_history(sb):
+        return (
+            sb.table("messages")
+            .select("*")
+            .eq("contract_id", contract_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+    resp = _retry_sb(_fetch_history)
 
     history = resp.data or []
 
@@ -688,13 +690,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
     now_iso = datetime.utcnow().isoformat()
 
     # Prepare rows to insert into messages table
-    rows = []
     user_row = {
         "contract_id": contract_id,
         "role": "user",
         "content": user_text,
     }
-    if images and not persisted_early:
+    if images:
         user_row["images"] = images
 
     assistant_row = {
@@ -704,16 +705,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "metadata": {"ready": ready},
     }
 
-    rows.append(user_row)
-    rows.append(assistant_row)
+    rows = [user_row, assistant_row]
 
-    # Persist messages (let DB set created_at)
+    # Persist messages (let DB set created_at) — retry on stale connections
     try:
-        if not persisted_early:
-            supabase.table("messages").insert(rows).execute()
-        else:
-            # If we persisted the user and extractor assistant early, only persist Claude's assistant reply now
-            supabase.table("messages").insert([assistant_row]).execute()
+        _retry_sb(lambda sb: sb.table("messages").insert(rows).execute())
     except Exception as e:
         print("Failed to persist messages:", e)
 
@@ -723,13 +719,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if contract:
             # Build extraction input from the full conversation history (messages table)
             # Fetch all messages for this contract in order and concatenate user/assistant turns
-            mresp = (
-                supabase.table("messages")
-                .select("role, content, images")
-                .eq("contract_id", contract_id)
-                .order("created_at", desc=False)
-                .execute()
-            )
+            def _fetch_all_msgs(sb):
+                return (
+                    sb.table("messages")
+                    .select("role, content, images")
+                    .eq("contract_id", contract_id)
+                    .order("created_at", desc=False)
+                    .execute()
+                )
+            mresp = _retry_sb(_fetch_all_msgs)
             mrows = mresp.data or []
 
             convo_text_parts: list[str] = []
