@@ -225,6 +225,17 @@ export const useContractPdfQuery = (
     gcTime: 1000 * 60 * 30,
   });
 
+// ── Signing (via backend) ────────────────────────────────────────────────────
+
+/**
+ * Sends signing links through the backend, which moves the contract to
+ * pending_signatures before calling the edge function.
+ */
+export const sendSigningLinksViaBackend = (contractId: string) =>
+  makeRequest<{ message: string }>("/signing/send-links", "post", {
+    contract_id: contractId,
+  });
+
 // ── Milestones ───────────────────────────────────────────────────────────────
 
 /**

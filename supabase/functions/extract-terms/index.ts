@@ -75,7 +75,7 @@ const ANALYZE_TOOL = {
       client: {
         type: "object",
         description: "The party paying for the work",
-        required: ["name"],
+        required: ["name", "contact"],
         properties: {
           name: { type: "string" },
           role: {
@@ -84,7 +84,7 @@ const ANALYZE_TOOL = {
           },
           contact: {
             type: "string",
-            description: "Phone, email, or handle if mentioned",
+            description: "Email address of the client — required for sending the signing link",
           },
         },
       },

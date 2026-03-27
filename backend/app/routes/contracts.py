@@ -62,6 +62,26 @@ async def extract_terms(request: ExtractTermsRequest):
         raise HTTPException(status_code=500, detail={"error": "Internal Server Error", "detail": str(e)})
 
 
+@router.post("/{contract_id}/generate", summary="Generate contract HTML and PDF from extracted terms")
+async def generate_contract(contract_id: str, owner_id: str = Header(..., alias="x-owner-id")):
+    """Triggers contract document generation from previously extracted terms."""
+    try:
+        result = await services.generate_contract(contract_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{contract_id}/generate", summary="Generate contract HTML and PDF from extracted terms")
+async def generate_contract(contract_id: str, owner_id: str = Header(..., alias="x-owner-id")):
+    """Triggers contract document generation from previously extracted terms."""
+    try:
+        result = await services.generate_contract(contract_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{contract_id}/pdf", summary="Get contract PDF URL or presigned link", responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 def get_contract_pdf(contract_id: str, x_owner_id: str = Header(None, alias="x-owner-id"), signing_token: str | None = Query(None)):
     """Return the contract PDF URL. Owner header or valid signing_token required."""

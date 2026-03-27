@@ -14,7 +14,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Tighten this to your frontend URL in production
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
