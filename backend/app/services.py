@@ -1,10 +1,13 @@
 import httpx
+import asyncio
+import base64
+import json
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 
-from app.supabase_client import get_supabase
+from app.supabase_client import get_supabase, reset_supabase
 from app.config import get_settings
 from app.schemas import (
     ExtractTermsRequest,
@@ -21,6 +24,19 @@ from app.schemas import (
 
 settings = get_settings()
 supabase = get_supabase()
+
+
+def _retry_sb(fn, retries=2):
+    """Execute a supabase call, retrying once with a fresh client on httpx errors."""
+    global supabase
+    for attempt in range(retries):
+        try:
+            return fn(supabase)
+        except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
+            if attempt < retries - 1:
+                supabase = reset_supabase()
+            else:
+                raise
 
 
 # ── Email ─────────────────────────────────────────────────────────────────────
@@ -130,24 +146,16 @@ def create_contract(owner_id: str, data: dict) -> dict:
 # ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS screenshot_urls jsonb DEFAULT '[]'::jsonb;
 
 def get_contract(contract_id: str) -> dict | None:
-    response = (
-        supabase.table("contracts")
-        .select("*")
-        .eq("id", contract_id)
-        .single()
-        .execute()
-    )
+    def _call(sb):
+        return sb.table("contracts").select("*").eq("id", contract_id).single().execute()
+    response = _retry_sb(_call)
     return response.data
 
 
 def get_contracts_by_owner(owner_id: str) -> list[dict]:
-    response = (
-        supabase.table("contracts")
-        .select("*")
-        .eq("owner_id", owner_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
+    def _call(sb):
+        return sb.table("contracts").select("*").eq("owner_id", owner_id).order("created_at", desc=True).execute()
+    response = _retry_sb(_call)
     return response.data
 
 
@@ -214,6 +222,150 @@ async def extract_terms(request: ExtractTermsRequest) -> ExtractTermsResponse:
         contract_id=request.contract_id,
         extracted_terms=ExtractedTerms(**terms),
     )
+
+
+# ── Contract generation (HTML + PDF) ──────────────────────────────────────────
+
+async def generate_contract(contract_id: str) -> dict:
+    """Generate contract HTML from extracted terms via Claude, then store HTML
+    and upload to Supabase Storage. Runs after extract_terms completes.
+
+    Everything runs directly in the backend — no edge function deployment needed.
+    """
+    contract = get_contract(contract_id)
+    if not contract:
+        raise Exception(f"Contract {contract_id} not found")
+
+    terms = contract.get("extracted_terms") or {}
+    if not terms:
+        raise Exception("No extracted terms found — cannot generate contract")
+
+    today = datetime.utcnow().strftime("%B %d, %Y")
+
+    terms_json = {
+        "title": contract.get("title"),
+        "reference": contract.get("reference"),
+        "date": today,
+        "service_provider": terms.get("service_provider"),
+        "client": terms.get("client"),
+        "deliverables": terms.get("deliverables"),
+        "payment": terms.get("payment"),
+        "timeline": terms.get("timeline"),
+        "default_clause": terms.get("default_clause"),
+        "escrow_proposed": contract.get("escrow_proposed", False),
+    }
+
+    terms_text = json.dumps(terms_json, indent=2)
+
+    system_prompt = (
+        "You are PactAI's contract drafting engine. Your job is to take structured agreement terms "
+        "and produce a professional, legally sound contract document in HTML format.\n\n"
+        "CRITICAL RULES:\n"
+        "1. Output ONLY the HTML content — no ```html fences, no <html>/<head>/<body> tags. Start with the contract title.\n"
+        "2. Use clean semantic HTML: <h1> for title, <h2> for sections, <p> for paragraphs, <ul>/<ol> for lists.\n"
+        "3. Include proper legal language but keep it clear and readable.\n"
+        "4. Sections to include (where applicable): Title, Parties, Scope of Work / Deliverables, "
+        "Payment Terms, Timeline / Milestones, Revision Policy, Intellectual Property, Confidentiality, "
+        "Termination, Default / Breach, Dispute Resolution, General Provisions, Signature Block.\n"
+        "5. Format currency: ₦ for NGN, $ for USD.\n"
+        "6. Use the provided date as the contract date.\n"
+        "7. If escrow is involved, include an Escrow section.\n"
+        "8. Do NOT invent terms not in the input. Use standard clauses for missing items.\n"
+        "9. Use inline styles for professional appearance — Georgia/serif font, clean spacing."
+    )
+
+    # Step 1: Call Claude directly to generate contract HTML
+    body = {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 8192,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": f"Generate the contract HTML for these terms:\n\n{terms_text}"}
+        ],
+    }
+
+    headers = {
+        "x-api-key": settings.anthropic_api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        resp = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+
+    if resp.status_code != 200:
+        raise Exception(f"Claude API error generating contract: {resp.status_code} {resp.text}")
+
+    result = resp.json()
+    contract_html = ""
+    try:
+        contract_html = result["content"][0]["text"]
+    except Exception:
+        raise Exception("Claude returned unexpected format for contract generation")
+
+    # Strip markdown fences if Claude wrapped the HTML
+    contract_html = contract_html.strip()
+    if contract_html.startswith("```"):
+        contract_html = contract_html.split("\n", 1)[1] if "\n" in contract_html else contract_html
+    if contract_html.endswith("```"):
+        contract_html = contract_html.rsplit("```", 1)[0]
+    contract_html = contract_html.strip()
+
+    if not contract_html:
+        raise Exception("Claude returned empty contract HTML")
+
+    # Step 2: Upload styled HTML document to Supabase Storage
+    reference = contract.get("reference", "")
+    full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{reference or 'Contract'} — PactAI</title>
+<style>
+@page {{ size: A4; margin: 2.5cm 2cm; }}
+body {{ font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; margin: 0; padding: 2cm; }}
+h1 {{ font-size: 20pt; text-align: center; margin-bottom: 4px; }}
+h2 {{ font-size: 13pt; font-weight: 700; margin-top: 28px; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
+p {{ margin: 0 0 10px; }}
+ul, ol {{ margin: 8px 0 16px 20px; }}
+li {{ margin-bottom: 4px; }}
+hr {{ border: none; border-top: 1px solid #ccc; margin: 32px 0; }}
+</style>
+</head>
+<body>
+{contract_html}
+<div style="text-align:center;font-size:9pt;color:#999;margin-top:40px;padding-top:16px;border-top:1px solid #eee;">
+Generated by PactAI{' — ' + reference if reference else ''}
+</div>
+</body>
+</html>"""
+
+    storage_path = f"{contract_id}/contract.html"
+    try:
+        supabase.storage.from_("contracts").upload(
+            storage_path,
+            full_html.encode("utf-8"),
+            file_options={"content-type": "text/html", "upsert": "true"},
+        )
+    except Exception as e:
+        print(f"Storage upload failed: {e}. Saving HTML to DB only.")
+
+    # Step 3: Update contract row
+    supabase.table("contracts").update({
+        "contract_html": contract_html,
+        "contract_pdf_url": storage_path,
+        "status": "negotiating",
+    }).eq("id", contract_id).execute()
+
+    # Log the event
+    supabase.table("contract_events").insert({
+        "contract_id": contract_id,
+        "actor_role": "system",
+        "event_type": "contract_generated",
+        "metadata": {"html_length": len(contract_html)},
+    }).execute()
+
+    return {"contract_id": contract_id, "contract_html": contract_html}
 
 
 # ── Signing links ─────────────────────────────────────────────────────────────
@@ -327,6 +479,24 @@ def get_escrow_conditions(contract_id: str) -> list[dict]:
     return response.data
 
 
+# ── Chat helpers (image vision) ───────────────────────────────────────────────
+
+async def _fetch_image_base64(client: httpx.AsyncClient, url: str) -> dict | None:
+    """Fetch an image URL and return an Anthropic-compatible image content block."""
+    try:
+        resp = await client.get(url, follow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        media_type = resp.headers.get("content-type", "image/png").split(";")[0].strip()
+        data = base64.standard_b64encode(resp.content).decode("utf-8")
+        return {
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": data},
+        }
+    except Exception:
+        return None
+
+
 # ── Chat flow ─────────────────────────────────────────────────────────────────
 
 async def chat(request: ChatRequest) -> ChatResponse:
@@ -368,50 +538,87 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     history = resp.data or []
 
-    # Build conversation array (only user/assistant roles included in messages)
-    convo = []
+    # Build conversation array with image tracking for multimodal support
+    convo: list[dict] = []
     for m in history:
         role = m.get("role")
         content = m.get("content")
-        # If stored images exist, expand content marker
-        if m.get("images") and not content:
+        msg_images = m.get("images") or []
+        if msg_images and not content:
             content = "[screenshot]"
-        # Accept both 'assistant' and legacy 'ai' roles from stored messages
         if role == "ai":
             role = "assistant"
         if role in ("user", "assistant") and content:
-            convo.append({"role": role, "content": content})
+            convo.append({
+                "role": role,
+                "content": content,
+                "images": msg_images if role == "user" else [],
+            })
 
-    # On first message, also read raw_input or screenshot from contract row
+    # On first message, seed from the contract row when the request has no content/image
     if not history:
-        # Only seed from the stored contract row when the incoming request
-        # did NOT include its own content or image. This prevents sending
-        # the same input twice on the very first user turn.
         if not request.content and not request.image_url:
             contract = get_contract(contract_id)
             if contract:
                 if contract.get("raw_input"):
-                    convo.append({"role": "user", "content": contract.get("raw_input")})
+                    convo.append({"role": "user", "content": contract.get("raw_input"), "images": []})
                 elif contract.get("screenshot_url"):
-                    convo.append({"role": "user", "content": f"[screenshot] {contract.get('screenshot_url')}"})
+                    seed_images = contract.get("screenshot_urls") or [contract.get("screenshot_url")]
+                    convo.append({"role": "user", "content": "[screenshot]", "images": seed_images})
 
     # Append current user message
-    convo.append({"role": "user", "content": user_text})
+    convo.append({"role": "user", "content": user_text, "images": images})
 
-    # Build the user_assistant_messages per Anthropic expected shape
-    user_assistant_messages = [
-        {"role": m["role"], "content": m["content"]}
-        for m in convo
-        if m.get("role") in ("user", "assistant") and m.get("content")
-    ]
+    # Collect unique image URLs across all user messages for parallel fetching
+    all_image_urls: list[str] = []
+    for m in convo:
+        for url in m.get("images", []):
+            if url and url not in all_image_urls:
+                all_image_urls.append(url)
 
-    # System prompt: instruct Claude to be conversational and to signal readiness
+    # Fetch images in parallel and convert to base64 for Claude vision
+    image_block_cache: dict[str, dict] = {}
+    if all_image_urls:
+        async with httpx.AsyncClient(timeout=30.0) as img_client:
+            tasks = [_fetch_image_base64(img_client, url) for url in all_image_urls]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for url, result in zip(all_image_urls, results):
+                if isinstance(result, dict):
+                    image_block_cache[url] = result
+
+    # Build messages with multimodal content blocks where images were fetched
+    user_assistant_messages: list[dict] = []
+    for m in convo:
+        if m.get("role") not in ("user", "assistant") or not m.get("content"):
+            continue
+
+        msg_images = m.get("images", [])
+        resolved_blocks = [image_block_cache[url] for url in msg_images if url in image_block_cache]
+
+        if m["role"] == "user" and resolved_blocks:
+            content_blocks: list[dict] = list(resolved_blocks)
+            text = m["content"]
+            if text and text != "[screenshot]":
+                content_blocks.append({"type": "text", "text": text})
+            else:
+                content_blocks.append({"type": "text", "text": "Please read and analyze these screenshot(s)."})
+            user_assistant_messages.append({"role": "user", "content": content_blocks})
+        else:
+            user_assistant_messages.append({"role": m["role"], "content": m["content"]})
+
     system_prompt = (
         "You are PactAI's conversational assistant. Your job is to help the user turn informal "
         "input (pasted text, chat screenshots, or manual typing) into a formal contract by: "
         "1) Summarising what you understand so far; 2) Asking a single clarifying question at a time "
         "whenever something is missing or ambiguous; and 3) When you have enough information to "
-        "produce the final structured extraction, append the token <READY_TO_EXTRACT> at the end of your reply. "
+        "produce the final structured extraction, append the token <READY_TO_EXTRACT> at the end of your reply.\n\n"
+        "IMPORTANT — Before marking ready, you MUST have collected:\n"
+        "- Both parties' full names\n"
+        "- The second party's (client/recipient) EMAIL ADDRESS — this is required to send them the signing link\n"
+        "- The key deliverables / scope of work\n"
+        "- Payment amount and schedule\n"
+        "If any of these are missing, ask for them. Especially always ask: "
+        "\"What is the other party's email address? We'll need it to send them the contract for signing.\"\n\n"
         "Do not perform the final structured extraction yourself — simply indicate readiness with the token so the system can call the extract-terms function."
     )
 
@@ -528,6 +735,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
             try:
                 await extract_terms(ext_req)
+                # After terms are extracted, generate the actual contract document
+                try:
+                    await generate_contract(contract_id)
+                except Exception as gen_err:
+                    print("generate_contract failed from chat flow:", gen_err)
             except Exception as e:
                 print("extract_terms failed from chat flow:", e)
 
@@ -541,13 +753,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 def get_messages(contract_id: str) -> list[dict]:
     """Return ordered messages for a contract. Maps 'assistant' role to 'ai' for frontend."""
-    resp = (
-        supabase.table("messages")
-        .select("id, role, content, metadata, images, created_at")
-        .eq("contract_id", contract_id)
-        .order("created_at", desc=False)
-        .execute()
-    )
+    def _call(sb):
+        return (
+            sb.table("messages")
+            .select("id, role, content, metadata, images, created_at")
+            .eq("contract_id", contract_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+    resp = _retry_sb(_call)
     rows = resp.data or []
     result = []
     for r in rows:

@@ -25,9 +25,14 @@ export interface Payment {
   milestone_split?: MilestoneSplit[];
 }
 
+export interface TimelineMilestone {
+  title: string;
+  due_date?: string;
+}
+
 export interface Timeline {
   deadline?: string;
-  milestones?: Record<string, unknown>[];
+  milestones?: TimelineMilestone[];
 }
 
 export interface DefaultClause {
@@ -74,6 +79,11 @@ export interface Contract {
   ambiguities?: Ambiguity[];
   created_at: string;
   updated_at?: string;
+  screenshot_urls?: string[];
+  edit_note?: string;
+  notify_party_b?: boolean;
+  signatures?: Signature[];
+  escrow_conditions?: Record<string, unknown>[];
 }
 
 export interface CreateContractPayload {
