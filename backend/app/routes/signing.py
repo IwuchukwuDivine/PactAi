@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas import SendSigningLinksRequest, SendSigningLinksResponse
+from app.schemas import SendSigningLinksRequest, SendSigningLinksResponse, ErrorResponse
 from app import services
 
 router = APIRouter()
 
 
-@router.post("/send-links", summary="Send signing link to client")
+@router.post("/send-links", summary="Send signing link to client", responses={500: {"model": ErrorResponse}})
 async def send_signing_links(request: SendSigningLinksRequest):
     """
     Moves contract to pending_signatures and emails the client
@@ -15,4 +15,4 @@ async def send_signing_links(request: SendSigningLinksRequest):
         result = await services.send_signing_links(request)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"error": "Internal Server Error", "detail": str(e)})

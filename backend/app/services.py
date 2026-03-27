@@ -149,7 +149,29 @@ def get_contract(contract_id: str) -> dict | None:
     def _call(sb):
         return sb.table("contracts").select("*").eq("id", contract_id).single().execute()
     response = _retry_sb(_call)
-    return response.data
+    contract = response.data
+    if not contract:
+        return None
+
+    # Fetch signatures
+    sig_resp = (
+        supabase.table("signatures")
+        .select("id, party_role, status, signed_at, signer_name, signer_email, escrow_consent")
+        .eq("contract_id", contract_id)
+        .execute()
+    )
+    contract["signatures"] = sig_resp.data
+
+    # Fetch escrow conditions
+    escrow_resp = (
+        supabase.table("escrow_conditions")
+        .select("id, label, service_provider_confirmed, client_confirmed, milestone_id")
+        .eq("contract_id", contract_id)
+        .execute()
+    )
+    contract["escrow_conditions"] = escrow_resp.data
+
+    return contract
 
 
 def get_contracts_by_owner(owner_id: str) -> list[dict]:
@@ -206,6 +228,7 @@ async def extract_terms(request: ExtractTermsRequest) -> ExtractTermsResponse:
         "timeline": terms.get("timeline"),
         "default_clause": terms.get("default_clause"),
         "ambiguities": terms.get("ambiguities"),
+        "status": "negotiating",
     }).eq("id", request.contract_id).execute()
 
     supabase.table("contract_events").insert({
@@ -514,9 +537,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
     user_text = request.content or ""
     images = []
     # Support both backward-compatible single image_url and new image_urls array
-    if getattr(request, "image_urls", None):
-        images = request.image_urls or []
-    elif getattr(request, "image_url", None):
+    if request.image_urls:
+        images = request.image_urls
+    elif request.image_url:
         images = [request.image_url]
 
     # Validate number of images
@@ -671,7 +694,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "role": "user",
         "content": user_text,
     }
-    if images:
+    if images and not persisted_early:
         user_row["images"] = images
 
     assistant_row = {
@@ -686,7 +709,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     # Persist messages (let DB set created_at)
     try:
-        supabase.table("messages").insert(rows).execute()
+        if not persisted_early:
+            supabase.table("messages").insert(rows).execute()
+        else:
+            # If we persisted the user and extractor assistant early, only persist Claude's assistant reply now
+            supabase.table("messages").insert([assistant_row]).execute()
     except Exception as e:
         print("Failed to persist messages:", e)
 
@@ -742,6 +769,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                     print("generate_contract failed from chat flow:", gen_err)
             except Exception as e:
                 print("extract_terms failed from chat flow:", e)
+                ready = False
 
     # Return assistant message and ready flag
     msg = MessageResponse(role="assistant", content=ai_text, created_at=datetime.utcnow())
