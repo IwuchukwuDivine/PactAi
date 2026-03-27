@@ -23,21 +23,24 @@ const APP_URL = Deno.env.get("APP_URL")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, content-type",
-      },
-    });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const { contract_id } = await req.json();
 
     if (!contract_id) {
-      return Response.json({ error: "contract_id is required" }, { status: 400 });
+      return Response.json(
+        { error: "contract_id is required" },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
     // ── Fetch contract ────────────────────────────────────────────────────────
@@ -48,13 +51,16 @@ serve(async (req) => {
       .single();
 
     if (contractError || !contract) {
-      return Response.json({ error: "Contract not found" }, { status: 404 });
+      return Response.json(
+        { error: "Contract not found" },
+        { status: 404, headers: corsHeaders }
+      );
     }
 
     if (contract.status !== "pending_signatures") {
       return Response.json(
         { error: `Contract must be in pending_signatures state (current: ${contract.status})` },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -66,7 +72,7 @@ serve(async (req) => {
     if (!clientEmail) {
       return Response.json(
         { error: "Client must have a contact email before signing links can be sent" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -88,7 +94,7 @@ serve(async (req) => {
       console.error("service_provider signature upsert error:", spErr);
       return Response.json(
         { error: "Failed to create service_provider signature row" },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -112,7 +118,7 @@ serve(async (req) => {
       console.error("client signature upsert error:", clientErr);
       return Response.json(
         { error: "Failed to create client signature row" },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -146,10 +152,13 @@ serve(async (req) => {
           payment: contract.payment,
         },
       },
-      { headers: { "Access-Control-Allow-Origin": "*" } }
+      { headers: corsHeaders }
     );
   } catch (err) {
     console.error("send-signing-links error:", err);
-    return Response.json({ error: String(err) }, { status: 500 });
+    return Response.json(
+      { error: String(err) },
+      { status: 500, headers: corsHeaders }
+    );
   }
 });
