@@ -7,6 +7,9 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: ["html2pdf.js"],
+    },
   },
   fonts: {
     families: [
